@@ -1,0 +1,240 @@
+:root {
+  --bg-color: #0f172a;
+  --card-bg: #1e293b;
+  --text-primary: #f8fafc;
+  --accent: #3b82f6;
+}
+
+body {
+  background-color: var(--bg-color);
+  color: var(--text-primary);
+  font-family: 'Segoe UI', sans-serif;
+  margin: 0;
+  display: flex;
+  justify-content: center;
+  min-height: 100vh;
+}
+
+.container {
+  width: 100%;
+  max-width: 1000px;
+  /* Rộng hơn cho Desktop */
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+/* Layout Grid cho Desktop: Chia 2 cột */
+@media (min-width: 768px) {
+  .main-grid {
+    display: grid;
+    grid-template-columns: 2fr 1fr;
+    /* Trái to, Phải nhỏ */
+    gap: 20px;
+  }
+}
+
+.card {
+  background-color: var(--card-bg);
+  padding: 24px;
+  border-radius: 16px;
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.2);
+}
+
+.header {
+  text-align: center;
+  margin-bottom: 20px;
+}
+
+.connect-btn-wrapper {
+  display: flex;
+  justify-content: center;
+  margin-top: 10px;
+}
+
+.stats-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.stat-box {
+  flex: 1;
+  text-align: center;
+  background: #334155;
+  padding: 10px;
+  border-radius: 8px;
+  min-width: 120px;
+}
+
+.stat-value {
+  font-size: 1.2rem;
+  font-weight: bold;
+  color: var(--accent);
+  overflow-wrap: break-word;
+}
+
+/* Form đăng ký tên */
+.name-regist {
+  display: flex;
+  gap: 10px;
+  margin-bottom: 15px;
+}
+
+.name-regist input {
+  flex: 1;
+  padding: 10px;
+  border-radius: 8px;
+  border: 1px solid #475569;
+  background: #0f172a;
+  color: white;
+}
+
+/* Bảng danh sách người chơi & Lịch sử */
+table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-top: 10px;
+}
+
+th,
+td {
+  padding: 10px;
+  text-align: left;
+  border-bottom: 1px solid #334155;
+}
+
+/* Xử lý text dài (địa chỉ ví) trên mobile */
+.address-col {
+  max-width: 150px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+@media (min-width: 768px) {
+  .address-col {
+    max-width: 300px;
+  }
+}
+
+button {
+  width: 100%;
+  padding: 12px;
+  border-radius: 8px;
+  border: none;
+  font-weight: bold;
+  cursor: pointer;
+  color: white;
+  transition: 0.2s;
+}
+
+.btn-primary {
+  background-color: var(--accent);
+}
+
+.btn-primary:disabled {
+  background-color: #64748b;
+  cursor: not-allowed;
+  opacity: 0.7;
+}
+
+.btn-danger {
+  background-color: #ef4444;
+}
+
+/* Modal */
+.modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.8);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 1000;
+  padding: 20px;
+}
+
+.modal-content {
+  background: #1e293b;
+  padding: 30px;
+  border-radius: 20px;
+  text-align: center;
+  max-width: 500px;
+  width: 100%;
+  animation: popIn 0.3s ease;
+}
+
+@keyframes popIn {
+  from {
+    transform: scale(0.5);
+  }
+
+  to {
+    transform: scale(1);
+  }
+}
+
+.qty-control {
+  display: flex;
+  align-items: center;
+  background: #0f172a;
+  /* Màu tối hơn nền card một chút */
+  border-radius: 12px;
+  padding: 5px;
+  border: 1px solid #475569;
+  margin-bottom: 10px;
+}
+
+.qty-btn {
+  width: 45px;
+  height: 45px;
+  border-radius: 8px;
+  border: none;
+  background: #334155;
+  color: white;
+  font-size: 1.5rem;
+  font-weight: bold;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: 0.2s;
+  margin: 0;
+  /* Reset margin mặc định */
+}
+
+.qty-btn:hover {
+  background: #475569;
+  color: #38bdf8;
+}
+
+.qty-btn:active {
+  transform: scale(0.95);
+}
+
+.qty-input {
+  flex: 1;
+  background: transparent;
+  border: none;
+  color: white;
+  text-align: center;
+  font-size: 1.8rem;
+  /* Số to rõ ràng */
+  font-weight: bold;
+  outline: none;
+  margin: 0;
+  padding: 0;
+}
+
+/* Ẩn mũi tên tăng giảm mặc định của trình duyệt */
+.qty-input::-webkit-outer-spin-button,
+.qty-input::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}

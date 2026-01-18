@@ -1,130 +1,132 @@
-// SPDX-License-Identifier: MIT
 pragma solidity ^0.8.0;
 
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
-import "./utils/Random.sol";
 
 contract Lottery is Ownable {
-    IERC20 public paymentToken;
+    IERC20 public token;
     uint256 public ticketPrice;
-    uint256 public constant LOTTERY_DURATION = 15 minutes;
-    
-    uint256 public constant REF_FEE = 5;      
-    uint256 public constant ADMIN_FEE = 5;    
-    uint256 public constant JACKPOT_ALLOC = 20; 
-
-    address[] public players;
     uint256 public lotteryId;
-    uint256 public endTime;
+    address[] public players;
     uint256 public jackpotPool;
+    uint256 public endTime;
+    uint256 public constant LOTTERY_DURATION = 2 minutes; 
 
-    struct LotteryResult {
-        uint256 id;
-        address[] winners;
-        uint256 winPrize;
-        bool jackpotHit;
-        uint256 jackpotPrize;
-        uint256 timestamp;
+    uint256 public uniquePlayersCount;
+    mapping(uint256 => mapping(address => bool)) public hasPlayedInRound;
+
+    // CONFIG JACKPOT
+    // 100% = 10000
+    uint256 public constant BASE_JACKPOT_CHANCE = 10;
+    // Thêm 100 HST trong pool jackpot => + 0.01% xác suất
+    uint256 public constant CHANCE_DIVISOR = 100 * 10**18; 
+
+    struct WinnerHistory {
+        uint256 round;
+        address winner;
+        uint256 amount;
+        bool isJackpotHit;
+        uint256 time;
     }
-    LotteryResult[] public history;
+    WinnerHistory[] public history;
 
-    mapping(address => address) public referrers;
-
-    event TicketsPurchased(address indexed player, address indexed referrer, uint256 quantity);
-    event ReferralPaid(address indexed referrer, address indexed player, uint256 amount);
-    event WinnersPicked(uint256 lotteryId, address[] winners, uint256 prize);
-    event JackpotHit(address winner, uint256 amount);
+    event TicketPurchased(address indexed player, uint256 amount);
+    event WinnerPicked(address indexed winner, uint256 amount, bool isJackpotHit);
+    event RoundEndedEmpty(uint256 round); 
 
     constructor(address _tokenAddress) Ownable(msg.sender) {
-        paymentToken = IERC20(_tokenAddress);
-        ticketPrice = 10 * 10 ** 18; 
+        token = IERC20(_tokenAddress);
+        ticketPrice = 10 * 10 ** 18;
         lotteryId = 1;
         endTime = block.timestamp + LOTTERY_DURATION;
     }
 
+    // Tính xác suất nổ hũ jackpot hiện tại
+    function getCurrentJackpotChance() public view returns (uint256) {
+        uint256 bonusChance = jackpotPool / CHANCE_DIVISOR;
+        uint256 totalChance = BASE_JACKPOT_CHANCE + bonusChance;
+        
+        // Xác suất max là 10%
+        if (totalChance > 1000) {
+            return 1000;
+        }
+        return totalChance;
+    }
+
     function buyTickets(uint256 _quantity, address _referrer) external {
         require(block.timestamp < endTime, "Vong choi da ket thuc");
-        require(_quantity > 0, "Phai mua it nhat 1 ve");
-        require(_referrer != msg.sender, "Khong duoc tu ref");
-        
-        uint256 totalPrice = ticketPrice * _quantity;
+        uint256 totalCost = ticketPrice * _quantity;
+        token.transferFrom(msg.sender, address(this), totalCost);
 
-        // 2. Xử lý Referral (Lưu người giới thiệu nếu là lần đầu)
-        if (referrers[msg.sender] == address(0) && _referrer != address(0)) {
-            referrers[msg.sender] = _referrer;
+        if (!hasPlayedInRound[lotteryId][msg.sender]) {
+            hasPlayedInRound[lotteryId][msg.sender] = true;
+            uniquePlayersCount++;
         }
 
-        // 3. Trừ tiền của người chơi (Trừ 1 cục to luôn cho tiết kiệm gas)
-        bool success = paymentToken.transferFrom(msg.sender, address(this), totalPrice);
-        require(success, "Transfer failed. Hay Approve du so tien");
-
-        // 4. Trả hoa hồng Referral (Tính trên tổng tiền)
-        address validReferrer = referrers[msg.sender];
-        if (validReferrer != address(0)) {
-            uint256 commission = (totalPrice * REF_FEE) / 100;
-            paymentToken.transfer(validReferrer, commission);
-            emit ReferralPaid(validReferrer, msg.sender, commission);
-        }
-
-        // 5. Thêm người chơi vào mảng (Vòng lặp)
-        // Mua bao nhiêu vé thì push bấy nhiêu lần -> Tăng tỉ lệ trúng
         for (uint256 i = 0; i < _quantity; i++) {
             players.push(msg.sender);
         }
 
-        emit TicketsPurchased(msg.sender, validReferrer, _quantity);
-    }
-
-    // --- LOGIC QUAY SỐ (GIỮ NGUYÊN) ---
-    function pickWinner() external {
-        require(players.length > 0, "Khong co nguoi choi");
-        require(block.timestamp >= endTime, "Chua den gio");
-
-        uint256 currentBalance = paymentToken.balanceOf(address(this));
-        uint256 roundRevenue = currentBalance - jackpotPool; 
-        
-        uint256 adminCommission = (roundRevenue * ADMIN_FEE) / 100;
-        paymentToken.transfer(owner(), adminCommission);
-
-        uint256 jackpotContribution = (roundRevenue * JACKPOT_ALLOC) / 100;
-        jackpotPool += jackpotContribution;
-
-        uint256 currentPot = roundRevenue - adminCommission - jackpotContribution;
-
-        uint256 randomSeed = RandomLib.generateRandomNumber(players.length);
-        bool isJackpotHit = (randomSeed % 20 == 0); // 5% cơ hội
-        uint256 jackpotWinAmount = 0;
-        address jackpotWinner = address(0);
-
-        uint256 winnerIndex = randomSeed % players.length;
-        address roundWinner = players[winnerIndex];
-
-        paymentToken.transfer(roundWinner, currentPot);
-
-        if (isJackpotHit) {
-            jackpotWinAmount = jackpotPool;
-            jackpotWinner = roundWinner; 
-            paymentToken.transfer(jackpotWinner, jackpotWinAmount);
-            emit JackpotHit(jackpotWinner, jackpotWinAmount);
-            jackpotPool = 0;
+        if (_referrer != address(0) && _referrer != msg.sender) {
+            token.transfer(_referrer, (totalCost * 10) / 100);
         }
 
-        address[] memory winnersList = new address[](1);
-        winnersList[0] = roundWinner;
+        emit TicketPurchased(msg.sender, _quantity);
+    }
 
-        history.push(LotteryResult({
-            id: lotteryId,
-            winners: winnersList,
-            winPrize: currentPot,
-            jackpotHit: isJackpotHit,
-            jackpotPrize: jackpotWinAmount,
-            timestamp: block.timestamp
-        }));
+    function pickWinner() external {
+        require(block.timestamp >= endTime, "Chua het gio");
 
-        emit WinnersPicked(lotteryId, winnersList, currentPot);
+        // Nếu không ai chơi vòng này
+        if (players.length == 0) {
+            history.push(WinnerHistory(lotteryId, address(0), 0, false, block.timestamp));
+            emit RoundEndedEmpty(lotteryId);
+            _resetGame();
+            return;
+        }
 
+        // Quay số chọn người thắng vòng
+        uint256 randomIndex = uint256(keccak256(abi.encodePacked(block.timestamp, players.length, block.prevrandao))) % players.length;
+        address winner = players[randomIndex];
+
+        uint256 currentBalance = token.balanceOf(address(this));
+        uint256 adminFee = currentBalance / 1000; // Admin ăn 0,1% mỗi vòng
+        uint256 prize = 0;
+        bool jackpotHit = false;
+
+        // Quay jackpot
+        if (uniquePlayersCount > 1) {
+             // Đóng góp vào jackpot pool 20%
+             uint256 toJackpot = (currentBalance * 20) / 100;
+             jackpotPool += toJackpot;
+
+             uint256 chance = getCurrentJackpotChance();
+             uint256 jackpotRoll = uint256(keccak256(abi.encodePacked(block.timestamp, winner, jackpotPool))) % 10000;
+             
+             if (jackpotRoll < chance) {
+                 // Nổ hũ jackpot
+                 jackpotHit = true;
+                 prize = (currentBalance - adminFee - toJackpot) + jackpotPool;
+                 jackpotPool = 0;
+             } else {
+                 prize = currentBalance - adminFee - toJackpot;
+             }
+        } else {
+            prize = currentBalance - adminFee; 
+        }
+        
+        token.transfer(owner(), adminFee);
+        token.transfer(winner, prize);
+
+        history.push(WinnerHistory(lotteryId, winner, prize, jackpotHit, block.timestamp));
+        emit WinnerPicked(winner, prize, jackpotHit);
+
+        _resetGame();
+    }
+
+    function _resetGame() private {
         delete players;
+        uniquePlayersCount = 0;
         lotteryId++;
         endTime = block.timestamp + LOTTERY_DURATION;
     }
@@ -132,15 +134,8 @@ contract Lottery is Ownable {
     function getPlayers() external view returns (address[] memory) {
         return players;
     }
-    
-    function getWinningChance(address _player) external view returns (uint256) {
-        if (players.length == 0) return 0;
-        uint256 count = 0;
-        for(uint256 i = 0; i < players.length; i++) {
-            if (players[i] == _player) {
-                count++;
-            }
-        }
-        return (count * 100) / players.length;
+
+    function getHistory() external view returns (WinnerHistory[] memory) {
+        return history;
     }
 }
