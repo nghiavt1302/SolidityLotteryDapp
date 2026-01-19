@@ -22,6 +22,8 @@ function App() {
   const { isLoading: isConfirming, isSuccess: isConfirmed } = useWaitForTransactionReceipt({ hash });
 
   const [ticketQty, setTicketQty] = useState(1);
+  const [referrer, setReferrer] = useState("");
+
   const [winnerModal, setWinnerModal] = useState(null);
   const [errorModal, setErrorModal] = useState(null);
   const [actionType, setActionType] = useState(null);
@@ -106,19 +108,23 @@ function App() {
 
   const handleBuy = () => {
     if (timeLeft === 0) {
-      setErrorModal({ title: "⏳ Đã hết giờ", message: "Vòng chơi này đã đóng cổng bán vé." });
+      setErrorModal({ title: "Đã hết giờ", message: "Vòng chơi này đã đóng cổng bán vé." });
       return;
     }
     if (!ticketQty || ticketQty <= 0) return;
     if (userBalance !== undefined && userBalance < totalCost) {
-      setErrorModal({ title: "⚠️ Thiếu tiền", message: "Bạn không đủ HST." });
+      setErrorModal({ title: "Hết tiền", message: "Bạn không đủ HST." });
       return;
     }
     setActionType('BUY');
+
+    // Referrer rỗng thì gửi address là 0
+    const refAddress = referrer && referrer.length > 0 ? referrer : "0x0000000000000000000000000000000000000000";
+
     if (!isAllowanceSufficient) {
       writeContract({ address: TOKEN_ADDRESS, abi: MyTokenABI.abi, functionName: "approve", args: [LOTTERY_ADDRESS, parseEther("100000")] });
     } else {
-      writeContract({ address: LOTTERY_ADDRESS, abi: LotteryABI.abi, functionName: "buyTickets", args: [BigInt(ticketQty), "0x0000000000000000000000000000000000000000"] });
+      writeContract({ address: LOTTERY_ADDRESS, abi: LotteryABI.abi, functionName: "buyTickets", args: [BigInt(ticketQty), refAddress] });
     }
   };
 
@@ -134,7 +140,7 @@ function App() {
   return (
     <div className="container">
       <div className="header">
-        <h1>🎰 HUST Lottery</h1>
+        <h1>HUST 🎰 Lottery</h1>
         <div style={{ color: '#94a3b8', marginBottom: '10px' }}>
           Vòng chơi hiện tại: <span style={{ color: '#f59e0b', fontSize: '1.5rem', fontWeight: 'bold' }}>#{lotteryId ? lotteryId.toString() : "..."}</span>
         </div>
@@ -177,27 +183,46 @@ function App() {
                 <button className="qty-btn" onClick={handleIncreaseQty}>+</button>
               </div>
 
+              {/* NHẬP MÃ GIỚI THIỆU */}
+              <div style={{ marginBottom: '10px' }}>
+                <input
+                  type="text"
+                  placeholder="Nhập ví giới thiệu (Nếu có)..."
+                  value={referrer}
+                  onChange={(e) => setReferrer(e.target.value)}
+                  style={{
+                    width: '100%',
+                    padding: '12px',
+                    borderRadius: '8px',
+                    border: '1px solid #475569',
+                    background: '#0f172a',
+                    color: 'white',
+                    boxSizing: 'border-box'
+                  }}
+                />
+              </div>
+
               <button
                 onClick={handleBuy}
                 className="btn-primary"
                 disabled={isBuying}
                 style={{ marginTop: '5px', opacity: isBuying ? 0.7 : 1 }}
               >
-                {isBuying ? "⏳ Đang giao dịch..." : (!isAllowanceSufficient ? "1. Approve & Mua" : `2. Mua Vé (${Number(ticketQty) * 10} HST)`)}
+                {isBuying ? "Đang giao dịch..." : (!isAllowanceSufficient ? "Cấp quyền mua vé" : `Mua Vé: (${Number(ticketQty) * 10} HST)`)}
               </button>
             </div>
 
             {timeLeft === 0 && (
               <div className="card" style={{ border: '2px solid #ef4444' }}>
-                <h3 style={{ color: '#ef4444', marginTop: 0 }}>🛑 Kết thúc vòng chơi</h3>
+                <h3 style={{ color: '#ef4444', marginTop: 0 }}>Kết thúc vòng chơi</h3>
                 <p style={{ textAlign: 'center' }}>
                   {players && players.length === 0 ?
-                    "⚠️ Vòng này không có người chơi. Bấm nút dưới để chuyển sang vòng mới." :
+                    "Vòng này không có người chơi. Bấm nút dưới để chuyển sang vòng mới." :
                     `Đã có ${players ? players.length : 0} vé tham gia.`
                   }
                 </p>
                 <button onClick={handlePickWinner} className="btn-danger" disabled={isPicking}>
-                  {isPicking ? "⏳ Đang xử lý..." : "👉 KẾT THÚC VÒNG & QUAY SỐ"}
+                  {isPicking ? "Đang xử lý..." : "KẾT THÚC VÒNG & QUAY SỐ"}
                 </button>
               </div>
             )}
@@ -230,7 +255,7 @@ function App() {
             </div>
 
             <div className="card">
-              <h3>📜 Lịch sử các vòng trước</h3>
+              <h3>Lịch sử các vòng trước</h3>
               <div style={{ maxHeight: '300px', overflowY: 'auto' }}>
                 <table>
                   <thead><tr><th>Vòng</th><th>Người thắng</th><th>Giải</th></tr></thead>
