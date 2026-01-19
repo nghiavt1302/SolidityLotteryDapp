@@ -78,10 +78,16 @@ function App() {
 
   useEffect(() => {
     if (isConfirmed) {
-      if (actionType === 'BUY' || actionType === 'SET_DURATION') {
+      if (actionType === 'BUY') {
         refetchPlayers(); refetchUserBalance(); refetchAllowance();
         setActionType(null);
-      } else if (actionType === 'PICK') {
+      }
+      else if (actionType === 'SET_DURATION') {
+        alert("Cập nhật thời gian thành công cho vòng chơi sau");
+        setActionType(null);
+        setNewDuration("");
+      }
+      else if (actionType === 'PICK') {
         setTimeout(() => fetchNewestHistory(), 1000);
       }
     }
@@ -173,18 +179,18 @@ function App() {
             <div className="card">
               <div className="stats-row">
                 <div className="stat-box">
-                  <div className="stat-label">Jackpot 🍯</div>
+                  <div className="stat-label">Jackpot</div>
                   <div className="stat-value">{jackpotPool ? formatEther(jackpotPool) : "0"}</div>
                 </div>
                 <div className="stat-box">
-                  <div className="stat-label">Thời gian ⏳</div>
+                  <div className="stat-label">Thời gian</div>
                   <div className="stat-value" style={{ color: timeLeft === 0 ? '#ef4444' : '#22c55e' }}>
                     {timeLeft > 0 ? `${Math.floor(timeLeft / 60)}:${(timeLeft % 60).toString().padStart(2, '0')}` : "HẾT GIỜ"}
                   </div>
                 </div>
               </div>
               <div style={{ background: '#334155', marginTop: '10px', padding: '5px', borderRadius: '5px', textAlign: 'center', color: '#38bdf8', fontSize: '0.9rem' }}>
-                🔥 Xác suất Nổ Hũ hiện tại: <strong>{chanceDisplay}%</strong>
+                🔥 Xác suất Nổ Hũ hiện tại: <strong>{chanceDisplay}%</strong> 🔥
               </div>
 
               <div style={{ borderTop: '1px solid #334155', margin: '15px 0' }}></div>
@@ -198,7 +204,7 @@ function App() {
             {/* Chỉnh sửa thời gian của vòng (chỉ admin) */}
             {isAdmin && (
               <div className="card" style={{ border: '1px solid #f59e0b' }}>
-                <h3 style={{ color: '#f59e0b', marginTop: 0 }}>⚙️ Admin Config</h3>
+                <h3 style={{ color: '#f59e0b', marginTop: 0 }}>Admin Config</h3>
                 <div style={{ marginBottom: '10px', fontSize: '0.9rem', color: '#94a3b8' }}>
                   Cài đặt thời gian cho vòng <strong>tiếp theo</strong> (Giây):
                 </div>

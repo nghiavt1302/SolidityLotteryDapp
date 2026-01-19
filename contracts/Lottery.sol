@@ -10,7 +10,7 @@ contract Lottery is Ownable {
     address[] public players;
     uint256 public jackpotPool;
     uint256 public endTime;
-    uint256 public lotteryDuration = 10 minutes; 
+    uint256 public lotteryDuration = 5 minutes; 
 
     uint256 public uniquePlayersCount;
     mapping(uint256 => mapping(address => bool)) public hasPlayedInRound;
@@ -42,15 +42,16 @@ contract Lottery is Ownable {
         endTime = block.timestamp + lotteryDuration;
     }
 
-    // Tính xác suất nổ hũ jackpot hiện tại
+    function setLotteryDuration(uint256 _seconds) external onlyOwner {
+        require(_seconds >= 1 minutes, "Thoi gian qua ngan"); 
+        lotteryDuration = _seconds;
+        emit DurationUpdated(_seconds);
+    }
+
     function getCurrentJackpotChance() public view returns (uint256) {
         uint256 bonusChance = jackpotPool / CHANCE_DIVISOR;
         uint256 totalChance = BASE_JACKPOT_CHANCE + bonusChance;
-        
-        // Xác suất max là 10%
-        if (totalChance > 1000) {
-            return 1000;
-        }
+        if (totalChance > 1000) return 1000;
         return totalChance;
     }
 
