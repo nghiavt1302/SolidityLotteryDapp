@@ -40,6 +40,7 @@ function App() {
 
   const { data: jackpotChance } = useReadContract({ ...readConfig, functionName: "getCurrentJackpotChance" });
   const { data: ownerAddress } = useReadContract({ ...readConfig, functionName: "owner" });
+  const { data: durationData, refetch: refetchDuration } = useReadContract({ ...readConfig, functionName: "lotteryDuration" });
 
   const { data: userBalance, refetch: refetchUserBalance } = useReadContract({ address: TOKEN_ADDRESS, abi: MyTokenABI.abi, functionName: "balanceOf", args: [address], query: { refetchInterval: 1000 } });
   const { data: allowance, refetch: refetchAllowance } = useReadContract({ address: TOKEN_ADDRESS, abi: MyTokenABI.abi, functionName: "allowance", args: [address, LOTTERY_ADDRESS], query: { refetchInterval: 1000 } });
@@ -83,9 +84,15 @@ function App() {
         setActionType(null);
       }
       else if (actionType === 'SET_DURATION') {
-        alert("Cập nhật thời gian thành công cho vòng chơi sau");
-        setActionType(null);
-        setNewDuration("");
+        refetchDuration().then((result) => {
+          const newSeconds = Number(result.data);
+          const newMinutes = (newSeconds / 60).toFixed(1);
+
+          alert(`ĐÃ CẬP NHẬT THÀNH CÔNG!\nThời gian vòng chơi sau là: ${newMinutes} phút.`);
+
+          setActionType(null);
+          setNewDuration("");
+        });
       }
       else if (actionType === 'PICK') {
         setTimeout(() => fetchNewestHistory(), 1000);
@@ -205,6 +212,11 @@ function App() {
             {isAdmin && (
               <div className="card" style={{ border: '1px solid #f59e0b' }}>
                 <h3 style={{ color: '#f59e0b', marginTop: 0 }}>Admin Config</h3>
+
+                <div style={{ marginBottom: '10px', fontSize: '0.9rem', color: '#22c55e' }}>
+                  Cài đặt hiện tại: <strong>{durationData ? (Number(durationData) / 60).toFixed(1) : "..."} phút</strong> / vòng.
+                </div>
+
                 <div style={{ marginBottom: '10px', fontSize: '0.9rem', color: '#94a3b8' }}>
                   Cài đặt thời gian cho vòng <strong>tiếp theo</strong> (Giây):
                 </div>
