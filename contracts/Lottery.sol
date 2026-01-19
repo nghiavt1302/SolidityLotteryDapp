@@ -10,7 +10,7 @@ contract Lottery is Ownable {
     address[] public players;
     uint256 public jackpotPool;
     uint256 public endTime;
-    uint256 public constant LOTTERY_DURATION = 2 minutes; 
+    uint256 public lotteryDuration = 5 minutes; 
 
     uint256 public uniquePlayersCount;
     mapping(uint256 => mapping(address => bool)) public hasPlayedInRound;
@@ -32,24 +32,26 @@ contract Lottery is Ownable {
 
     event TicketPurchased(address indexed player, uint256 amount);
     event WinnerPicked(address indexed winner, uint256 amount, bool isJackpotHit);
-    event RoundEndedEmpty(uint256 round); 
+    event RoundEndedEmpty(uint256 round);
+    event DurationUpdated(uint256 newDuration);
 
     constructor(address _tokenAddress) Ownable(msg.sender) {
         token = IERC20(_tokenAddress);
         ticketPrice = 10 * 10 ** 18;
         lotteryId = 1;
-        endTime = block.timestamp + LOTTERY_DURATION;
+        endTime = block.timestamp + lotteryDuration;
     }
 
-    // Tính xác suất nổ hũ jackpot hiện tại
+    function setLotteryDuration(uint256 _seconds) external onlyOwner {
+        require(_seconds >= 1 minutes, "Thoi gian qua ngan"); 
+        lotteryDuration = _seconds;
+        emit DurationUpdated(_seconds);
+    }
+
     function getCurrentJackpotChance() public view returns (uint256) {
         uint256 bonusChance = jackpotPool / CHANCE_DIVISOR;
         uint256 totalChance = BASE_JACKPOT_CHANCE + bonusChance;
-        
-        // Xác suất max là 10%
-        if (totalChance > 1000) {
-            return 1000;
-        }
+        if (totalChance > 1000) return 1000;
         return totalChance;
     }
 
@@ -68,7 +70,8 @@ contract Lottery is Ownable {
         }
 
         if (_referrer != address(0) && _referrer != msg.sender) {
-            token.transfer(_referrer, (totalCost * 10) / 100);
+            // Hoa hồng 1% tiền mua vé cho người giới thiệu
+            token.transfer(_referrer, (totalCost * 1) / 100);
         }
 
         emit TicketPurchased(msg.sender, _quantity);
@@ -96,8 +99,8 @@ contract Lottery is Ownable {
 
         // Quay jackpot
         if (uniquePlayersCount > 1) {
-             // Đóng góp vào jackpot pool 20%
-             uint256 toJackpot = (currentBalance * 20) / 100;
+             // Đóng góp vào jackpot pool 10%
+             uint256 toJackpot = (currentBalance * 10) / 100;
              jackpotPool += toJackpot;
 
              uint256 chance = getCurrentJackpotChance();
@@ -128,7 +131,7 @@ contract Lottery is Ownable {
         delete players;
         uniquePlayersCount = 0;
         lotteryId++;
-        endTime = block.timestamp + LOTTERY_DURATION;
+        endTime = block.timestamp + lotteryDuration;
     }
 
     function getPlayers() external view returns (address[] memory) {

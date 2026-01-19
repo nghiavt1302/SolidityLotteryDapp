@@ -22,6 +22,9 @@ function App() {
   const { isLoading: isConfirming, isSuccess: isConfirmed } = useWaitForTransactionReceipt({ hash });
 
   const [ticketQty, setTicketQty] = useState(1);
+  const [referrer, setReferrer] = useState("");
+  const [newDuration, setNewDuration] = useState("");
+
   const [winnerModal, setWinnerModal] = useState(null);
   const [errorModal, setErrorModal] = useState(null);
   const [actionType, setActionType] = useState(null);
@@ -36,6 +39,8 @@ function App() {
   const { data: uniqueCount } = useReadContract({ ...readConfig, functionName: "uniquePlayersCount" });
 
   const { data: jackpotChance } = useReadContract({ ...readConfig, functionName: "getCurrentJackpotChance" });
+  const { data: ownerAddress } = useReadContract({ ...readConfig, functionName: "owner" });
+  const { data: durationData, refetch: refetchDuration } = useReadContract({ ...readConfig, functionName: "lotteryDuration" });
 
   const { data: userBalance, refetch: refetchUserBalance } = useReadContract({ address: TOKEN_ADDRESS, abi: MyTokenABI.abi, functionName: "balanceOf", args: [address], query: { refetchInterval: 1000 } });
   const { data: allowance, refetch: refetchAllowance } = useReadContract({ address: TOKEN_ADDRESS, abi: MyTokenABI.abi, functionName: "allowance", args: [address, LOTTERY_ADDRESS], query: { refetchInterval: 1000 } });
@@ -46,6 +51,8 @@ function App() {
     players.forEach(p => { counts[p] = (counts[p] || 0) + 1; });
     return Object.keys(counts).map(addr => ({ address: addr, count: counts[addr] }));
   }, [players]);
+
+  const isAdmin = address && ownerAddress && address.toLowerCase() === ownerAddress.toLowerCase();
 
   const fetchNewestHistory = async (retryCount = 0) => {
     if (retryCount > 5) { setActionType(null); return; }
@@ -75,7 +82,19 @@ function App() {
       if (actionType === 'BUY') {
         refetchPlayers(); refetchUserBalance(); refetchAllowance();
         setActionType(null);
-      } else if (actionType === 'PICK') {
+      }
+      else if (actionType === 'SET_DURATION') {
+        refetchDuration().then((result) => {
+          const newSeconds = Number(result.data);
+          const newMinutes = (newSeconds / 60).toFixed(1);
+
+          alert(`ĐÃ CẬP NHẬT THÀNH CÔNG!\nThời gian vòng chơi sau là: ${newMinutes} phút.`);
+
+          setActionType(null);
+          setNewDuration("");
+        });
+      }
+      else if (actionType === 'PICK') {
         setTimeout(() => fetchNewestHistory(), 1000);
       }
     }
@@ -98,6 +117,7 @@ function App() {
   const isGlobalLoading = isWritePending || isConfirming;
   const isBuying = isGlobalLoading && actionType === 'BUY';
   const isPicking = (isGlobalLoading && actionType === 'PICK') || (actionType === 'PICK' && isConfirmed);
+  const isSettingDuration = isGlobalLoading && actionType === 'SET_DURATION';
 
   const chanceDisplay = jackpotChance ? (Number(jackpotChance) / 100).toFixed(2) : "0.10";
 
@@ -106,25 +126,44 @@ function App() {
 
   const handleBuy = () => {
     if (timeLeft === 0) {
-      setErrorModal({ title: "⏳ Đã hết giờ", message: "Vòng chơi này đã đóng cổng bán vé." });
+      setErrorModal({ title: "Đã hết giờ", message: "Vòng chơi này đã đóng cổng bán vé." });
       return;
     }
     if (!ticketQty || ticketQty <= 0) return;
     if (userBalance !== undefined && userBalance < totalCost) {
-      setErrorModal({ title: "⚠️ Thiếu tiền", message: "Bạn không đủ HST." });
+      setErrorModal({ title: "Hết tiền", message: "Bạn không đủ HST." });
       return;
     }
     setActionType('BUY');
+
+    // Referrer rỗng thì gửi address là 0
+    const refAddress = referrer && referrer.length > 0 ? referrer : "0x0000000000000000000000000000000000000000";
+
     if (!isAllowanceSufficient) {
       writeContract({ address: TOKEN_ADDRESS, abi: MyTokenABI.abi, functionName: "approve", args: [LOTTERY_ADDRESS, parseEther("100000")] });
     } else {
-      writeContract({ address: LOTTERY_ADDRESS, abi: LotteryABI.abi, functionName: "buyTickets", args: [BigInt(ticketQty), "0x0000000000000000000000000000000000000000"] });
+      writeContract({ address: LOTTERY_ADDRESS, abi: LotteryABI.abi, functionName: "buyTickets", args: [BigInt(ticketQty), refAddress] });
     }
   };
 
   const handlePickWinner = () => {
     setActionType('PICK');
     writeContract({ address: LOTTERY_ADDRESS, abi: LotteryABI.abi, functionName: "pickWinner" });
+  };
+
+  // Cập nhật thời gian vòng (seconds)
+  const handleSetDuration = () => {
+    if (!newDuration || Number(newDuration) < 60) {
+      alert("Vui lòng nhập thời gian tối thiểu 60 giây");
+      return;
+    }
+    setActionType('SET_DURATION');
+    writeContract({
+      address: LOTTERY_ADDRESS,
+      abi: LotteryABI.abi,
+      functionName: "setLotteryDuration",
+      args: [BigInt(newDuration)]
+    });
   };
 
   const handleFaucet = () => {
@@ -134,7 +173,7 @@ function App() {
   return (
     <div className="container">
       <div className="header">
-        <h1>🎰 HUST Lottery</h1>
+        <h1>HUST 🎰 Lottery</h1>
         <div style={{ color: '#94a3b8', marginBottom: '10px' }}>
           Vòng chơi hiện tại: <span style={{ color: '#f59e0b', fontSize: '1.5rem', fontWeight: 'bold' }}>#{lotteryId ? lotteryId.toString() : "..."}</span>
         </div>
@@ -147,18 +186,18 @@ function App() {
             <div className="card">
               <div className="stats-row">
                 <div className="stat-box">
-                  <div className="stat-label">Jackpot 🍯</div>
+                  <div className="stat-label">Jackpot</div>
                   <div className="stat-value">{jackpotPool ? formatEther(jackpotPool) : "0"}</div>
                 </div>
                 <div className="stat-box">
-                  <div className="stat-label">Thời gian ⏳</div>
+                  <div className="stat-label">Thời gian</div>
                   <div className="stat-value" style={{ color: timeLeft === 0 ? '#ef4444' : '#22c55e' }}>
                     {timeLeft > 0 ? `${Math.floor(timeLeft / 60)}:${(timeLeft % 60).toString().padStart(2, '0')}` : "HẾT GIỜ"}
                   </div>
                 </div>
               </div>
               <div style={{ background: '#334155', marginTop: '10px', padding: '5px', borderRadius: '5px', textAlign: 'center', color: '#38bdf8', fontSize: '0.9rem' }}>
-                🔥 Xác suất Nổ Hũ hiện tại: <strong>{chanceDisplay}%</strong>
+                🔥 Xác suất Nổ Hũ hiện tại: <strong>{chanceDisplay}%</strong> 🔥
               </div>
 
               <div style={{ borderTop: '1px solid #334155', margin: '15px 0' }}></div>
@@ -169,6 +208,37 @@ function App() {
               </div>
             </div>
 
+            {/* Chỉnh sửa thời gian của vòng (chỉ admin) */}
+            {isAdmin && (
+              <div className="card" style={{ border: '1px solid #f59e0b' }}>
+                <h3 style={{ color: '#f59e0b', marginTop: 0 }}>Admin Config</h3>
+
+                <div style={{ marginBottom: '10px', fontSize: '0.9rem', color: '#22c55e' }}>
+                  Cài đặt hiện tại: <strong>{durationData ? (Number(durationData) / 60).toFixed(1) : "..."} phút</strong> / vòng.
+                </div>
+
+                <div style={{ marginBottom: '10px', fontSize: '0.9rem', color: '#94a3b8' }}>
+                  Cài đặt thời gian cho vòng <strong>tiếp theo</strong> (Giây):
+                </div>
+                <div style={{ display: 'flex', gap: '10px' }}>
+                  <input
+                    type="number"
+                    placeholder="VD: 300 (là 5 phút)"
+                    value={newDuration}
+                    onChange={(e) => setNewDuration(e.target.value)}
+                    style={{ flex: 1, padding: '10px', borderRadius: '8px', border: '1px solid #475569', background: '#0f172a', color: 'white' }}
+                  />
+                  <button
+                    onClick={handleSetDuration}
+                    disabled={isSettingDuration}
+                    style={{ width: '100px', background: '#f59e0b', color: 'black' }}
+                  >
+                    {isSettingDuration ? "..." : "Lưu"}
+                  </button>
+                </div>
+              </div>
+            )}
+
             <div className="card">
               <h3 style={{ marginBottom: '15px' }}>Mua Vé (10 HST/vé)</h3>
               <div className="qty-control">
@@ -177,27 +247,38 @@ function App() {
                 <button className="qty-btn" onClick={handleIncreaseQty}>+</button>
               </div>
 
+              {/* NHẬP MÃ GIỚI THIỆU */}
+              <div style={{ marginBottom: '10px' }}>
+                <input
+                  type="text"
+                  placeholder="Nhập ví người giới thiệu (Nếu có)..."
+                  value={referrer}
+                  onChange={(e) => setReferrer(e.target.value)}
+                  style={{ width: '100%', padding: '12px', borderRadius: '8px', border: '1px solid #475569', background: '#0f172a', color: 'white', boxSizing: 'border-box' }}
+                />
+              </div>
+
               <button
                 onClick={handleBuy}
                 className="btn-primary"
                 disabled={isBuying}
                 style={{ marginTop: '5px', opacity: isBuying ? 0.7 : 1 }}
               >
-                {isBuying ? "⏳ Đang giao dịch..." : (!isAllowanceSufficient ? "1. Approve & Mua" : `2. Mua Vé (${Number(ticketQty) * 10} HST)`)}
+                {isBuying ? "Đang giao dịch..." : (!isAllowanceSufficient ? "Cấp quyền mua vé" : `Mua Vé: (${Number(ticketQty) * 10} HST)`)}
               </button>
             </div>
 
             {timeLeft === 0 && (
               <div className="card" style={{ border: '2px solid #ef4444' }}>
-                <h3 style={{ color: '#ef4444', marginTop: 0 }}>🛑 Kết thúc vòng chơi</h3>
+                <h3 style={{ color: '#ef4444', marginTop: 0 }}>Kết thúc vòng chơi</h3>
                 <p style={{ textAlign: 'center' }}>
                   {players && players.length === 0 ?
-                    "⚠️ Vòng này không có người chơi. Bấm nút dưới để chuyển sang vòng mới." :
+                    "Vòng này không có người chơi. Bấm nút dưới để chuyển sang vòng mới." :
                     `Đã có ${players ? players.length : 0} vé tham gia.`
                   }
                 </p>
                 <button onClick={handlePickWinner} className="btn-danger" disabled={isPicking}>
-                  {isPicking ? "⏳ Đang xử lý..." : "👉 KẾT THÚC VÒNG & QUAY SỐ"}
+                  {isPicking ? "Đang xử lý..." : "KẾT THÚC VÒNG & QUAY SỐ"}
                 </button>
               </div>
             )}
@@ -230,7 +311,7 @@ function App() {
             </div>
 
             <div className="card">
-              <h3>📜 Lịch sử các vòng trước</h3>
+              <h3>Lịch sử các vòng trước</h3>
               <div style={{ maxHeight: '300px', overflowY: 'auto' }}>
                 <table>
                   <thead><tr><th>Vòng</th><th>Người thắng</th><th>Giải</th></tr></thead>
