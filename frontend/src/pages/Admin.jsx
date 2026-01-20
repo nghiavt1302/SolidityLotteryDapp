@@ -1,47 +1,266 @@
-import React, { useState } from "react";
-import { useAccount, useReadContract, useWriteContract } from "wagmi";
-import { parseEther } from "ethers";
+import React, { useState, useEffect } from "react";
+import { useAccount, useReadContract, useWriteContract, useWaitForTransactionReceipt, useBalance } from "wagmi";
+import { parseEther, formatEther } from "ethers";
 import LotteryABI from "../artifacts/Lottery.json";
 import ExchangerABI from "../artifacts/TokenExchanger.json";
-import { LOTTERY_ADDRESS, EXCHANGER_ADDRESS } from "../App";
+import TokenABI from "../artifacts/HustToken.json";
+import { LOTTERY_ADDRESS, EXCHANGER_ADDRESS, TOKEN_ADDRESS } from "../App";
+import { createPublicClient, http, parseAbiItem } from 'viem';
+import { hardhat } from 'viem/chains';
 
 export default function Admin() {
     const { address } = useAccount();
-    const { writeContract } = useWriteContract();
+    const { writeContract, data: hash } = useWriteContract();
+    const { isSuccess } = useWaitForTransactionReceipt({ hash });
 
     const { data: owner } = useReadContract({ address: LOTTERY_ADDRESS, abi: LotteryABI.abi, functionName: "owner" });
+
+    // Đọc số lượng HST trong TokenExchanger
+    const { data: exchangerHSTBalance } = useReadContract({
+        address: TOKEN_ADDRESS,
+        abi: TokenABI.abi,
+        functionName: "balanceOf",
+        args: [EXCHANGER_ADDRESS],
+        query: { refetchInterval: 2000 }
+    });
+
+    // Đọc số dư ETH trong Exchanger contract
+    const { data: exchangerETHBalance } = useBalance({
+        address: EXCHANGER_ADDRESS,
+        query: { refetchInterval: 2000 }
+    });
+
+    // Đọc số dư ETH của admin
+    const { data: adminETHBalance } = useBalance({
+        address: address,
+        query: { refetchInterval: 2000 }
+    });
+
 
     const [newDuration, setNewDuration] = useState("");
     const [depositAmt, setDepositAmt] = useState("");
     const [withdrawAmt, setWithdrawAmt] = useState("");
+    const [history, setHistory] = useState([]);
+
+    // Fetch admin activity history
+    const fetchHistory = async () => {
+        if (!address) return;
+        const client = createPublicClient({ chain: hardhat, transport: http() });
+
+        try {
+            // Lấy logs nạp vốn (LiquidityAdded)
+            const liquidityLogs = await client.getLogs({
+                address: EXCHANGER_ADDRESS,
+                event: parseAbiItem('event LiquidityAdded(uint256 ethAmount)'),
+                fromBlock: 'earliest'
+            });
+
+            // Lấy logs rút lãi (FeesWithdrawn)
+            const withdrawLogs = await client.getLogs({
+                address: EXCHANGER_ADDRESS,
+                event: parseAbiItem('event FeesWithdrawn(uint256 ethAmount)'),
+                fromBlock: 'earliest'
+            });
+
+            // Lấy logs thay đổi thời gian lottery (nếu có event)
+            // Note: Cần kiểm tra xem Lottery contract có emit event khi setLotteryDuration không
+            // Giả sử có event LotteryDurationUpdated(uint256 newDuration)
+            let durationLogs = [];
+            try {
+                durationLogs = await client.getLogs({
+                    address: LOTTERY_ADDRESS,
+                    event: parseAbiItem('event LotteryDurationUpdated(uint256 newDuration)'),
+                    fromBlock: 'earliest'
+                });
+            } catch (e) {
+                // Event không tồn tại, bỏ qua
+                console.log("LotteryDurationUpdated event not found");
+            }
+
+            const formattedHistory = [
+                ...liquidityLogs.map(l => ({
+                    type: 'NẠP VỐN',
+                    amount: formatEther(l.args.ethAmount),
+                    unit: 'ETH',
+                    hash: l.transactionHash,
+                    blockNumber: l.blockNumber
+                })),
+                ...withdrawLogs.map(l => ({
+                    type: 'RÚT LÃI',
+                    amount: formatEther(l.args.ethAmount),
+                    unit: 'ETH',
+                    hash: l.transactionHash,
+                    blockNumber: l.blockNumber
+                })),
+                ...durationLogs.map(l => ({
+                    type: 'ĐỔI THỜI GIAN',
+                    amount: l.args.newDuration.toString(),
+                    unit: 'giây',
+                    hash: l.transactionHash,
+                    blockNumber: l.blockNumber
+                }))
+            ].sort((a, b) => Number(b.blockNumber) - Number(a.blockNumber));
+
+            setHistory(formattedHistory);
+        } catch (error) {
+            console.error("Error fetching admin history:", error);
+        }
+    };
+
+    useEffect(() => {
+        fetchHistory();
+    }, [address, isSuccess]);
 
     if (!address || !owner || address.toLowerCase() !== owner.toLowerCase()) {
         return <div className="center-msg">Bạn không phải Admin.</div>;
     }
 
     return (
-        <div className="main-grid" style={{ gridTemplateColumns: '1fr' }}>
+        <div className="main-grid" style={{ gridTemplateColumns: '1fr 1fr', gap: '20px' }}>
             <div className="card" style={{ border: '1px solid #f59e0b' }}>
                 <h2 style={{ color: '#f59e0b' }}>⚙️ Admin Dashboard</h2>
 
+                {/* Thông tin Exchanger */}
+                <div className="admin-section" style={{ background: '#f0f9ff', padding: '15px', borderRadius: '8px', marginBottom: '20px' }}>
+                    <h4 style={{ color: '#0284c7', marginTop: 0 }}>📊 Thông Tin Exchanger</h4>
+
+                    {/* ETH Balance - Vốn thanh khoản */}
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
+                        <span style={{ fontSize: '14px', color: '#64748b' }}>💰 Vốn thanh khoản (ETH):</span>
+                        <span style={{ fontSize: '20px', fontWeight: 'bold', color: '#10b981' }}>
+                            {exchangerETHBalance ? Number(formatEther(exchangerETHBalance.value)).toFixed(4) : "0"} ETH
+                        </span>
+                    </div>
+
+                    {/* HST Balance */}
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingTop: '10px', borderTop: '1px solid #e0f2fe' }}>
+                        <span style={{ fontSize: '14px', color: '#64748b' }}>🪙 HST đang lưu hành:</span>
+                        <span style={{ fontSize: '18px', fontWeight: 'bold', color: '#0284c7' }}>
+                            {exchangerHSTBalance ? Number(formatEther(exchangerHSTBalance)).toLocaleString() : "0"} HST
+                        </span>
+                    </div>
+                </div>
+
+                {/* Thông tin Admin Wallet */}
+                <div className="admin-section" style={{ background: '#fef3c7', padding: '15px', borderRadius: '8px', marginBottom: '20px' }}>
+                    <h4 style={{ color: '#d97706', marginTop: 0 }}>👤 Ví Admin</h4>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <span style={{ fontSize: '14px', color: '#78716c' }}>Số dư ETH:</span>
+                        <span style={{ fontSize: '20px', fontWeight: 'bold', color: '#d97706' }}>
+                            {adminETHBalance ? Number(formatEther(adminETHBalance.value)).toFixed(2) : "0"} ETH
+                        </span>
+                    </div>
+                    <div style={{ fontSize: '11px', color: '#78716c', marginTop: '5px', fontStyle: 'italic' }}>
+                        💡 Hardhat test account ban đầu có 10,000 ETH
+                    </div>
+                </div>
+
+
                 <div className="admin-section">
                     <h4>1. Cài đặt Game</h4>
-                    <div className="input-group">
-                        <input placeholder="Thời gian vòng (giây)" value={newDuration} onChange={e => setNewDuration(e.target.value)} />
-                        <button onClick={() => writeContract({ address: LOTTERY_ADDRESS, abi: LotteryABI.abi, functionName: "setLotteryDuration", args: [BigInt(newDuration)] })}>Cập nhật</button>
+                    <div className="qty-control" style={{ marginBottom: '10px' }}>
+                        <input
+                            type="number"
+                            className="fancy-input"
+                            placeholder="Thời gian vòng (giây)"
+                            value={newDuration}
+                            onChange={e => setNewDuration(e.target.value)}
+                        />
+                        <span style={{ paddingRight: '15px', fontWeight: 'bold', color: '#64748b' }}>giây</span>
                     </div>
+                    <button
+                        onClick={() => writeContract({ address: LOTTERY_ADDRESS, abi: LotteryABI.abi, functionName: "setLotteryDuration", args: [BigInt(newDuration)] })}
+                        className="btn-primary"
+                    >
+                        Cập nhật
+                    </button>
                 </div>
 
                 <div className="admin-section">
                     <h4>2. Quản lý Vốn Exchanger</h4>
-                    <div className="input-group">
-                        <input placeholder="Số ETH nạp vào (Vốn mồi)" value={depositAmt} onChange={e => setDepositAmt(e.target.value)} />
-                        <button onClick={() => writeContract({ address: EXCHANGER_ADDRESS, abi: ExchangerABI.abi, functionName: "depositLiquidity", value: parseEther(depositAmt) })} className="btn-success">Nạp Vốn</button>
+                    <div className="qty-control" style={{ marginBottom: '10px' }}>
+                        <input
+                            type="number"
+                            className="fancy-input"
+                            placeholder="Số ETH nạp vào (Vốn mồi)"
+                            value={depositAmt}
+                            onChange={e => setDepositAmt(e.target.value)}
+                        />
+                        <span style={{ paddingRight: '15px', fontWeight: 'bold', color: '#64748b' }}>ETH</span>
                     </div>
-                    <div className="input-group" style={{ marginTop: '10px' }}>
-                        <input placeholder="Số ETH muốn rút (Lãi)" value={withdrawAmt} onChange={e => setWithdrawAmt(e.target.value)} />
-                        <button onClick={() => writeContract({ address: EXCHANGER_ADDRESS, abi: ExchangerABI.abi, functionName: "withdrawETH", args: [parseEther(withdrawAmt)] })} className="btn-danger">Rút Lãi</button>
+                    <button
+                        onClick={() => writeContract({ address: EXCHANGER_ADDRESS, abi: ExchangerABI.abi, functionName: "depositLiquidity", value: parseEther(depositAmt) })}
+                        className="btn-primary"
+                        style={{ background: '#22c55e', marginBottom: '15px' }}
+                    >
+                        Nạp Vốn
+                    </button>
+
+                    <div className="qty-control" style={{ marginBottom: '10px' }}>
+                        <input
+                            type="number"
+                            className="fancy-input"
+                            placeholder="Số ETH muốn rút (Lãi)"
+                            value={withdrawAmt}
+                            onChange={e => setWithdrawAmt(e.target.value)}
+                        />
+                        <span style={{ paddingRight: '15px', fontWeight: 'bold', color: '#64748b' }}>ETH</span>
                     </div>
+                    <button
+                        onClick={() => writeContract({ address: EXCHANGER_ADDRESS, abi: ExchangerABI.abi, functionName: "withdrawETH", args: [parseEther(withdrawAmt)] })}
+                        className="btn-danger"
+                    >
+                        Rút Lãi
+                    </button>
+                </div>
+            </div>
+
+            {/* Lịch sử hoạt động Admin */}
+            <div className="card" style={{ border: '1px solid #f59e0b' }}>
+                <h3 style={{ color: '#f59e0b' }}>📜 Lịch sử hoạt động Admin</h3>
+                <div className="scroll-box" style={{ maxHeight: '500px', overflowY: 'auto' }}>
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Loại</th>
+                                <th>Số lượng</th>
+                                <th>Tx</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {history.map((h, i) => (
+                                <tr key={i}>
+                                    <td style={{
+                                        color: h.type === 'NẠP VỐN' ? '#22c55e' : h.type === 'RÚT LÃI' ? '#ef4444' : '#f59e0b',
+                                        fontWeight: 'bold',
+                                        fontSize: '0.85rem'
+                                    }}>
+                                        {h.type}
+                                    </td>
+                                    <td style={{ fontSize: '0.9rem' }}>
+                                        {h.type === 'ĐỔI THỜI GIAN' ? h.amount : Number(h.amount).toFixed(4)} {h.unit}
+                                    </td>
+                                    <td>
+                                        <a
+                                            href={`https://sepolia.etherscan.io/tx/${h.hash}`}
+                                            target="_blank"
+                                            rel="noreferrer"
+                                            style={{ color: '#38bdf8', textDecoration: 'none', fontSize: '0.85rem' }}
+                                        >
+                                            Xem
+                                        </a>
+                                    </td>
+                                </tr>
+                            ))}
+                            {history.length === 0 && (
+                                <tr>
+                                    <td colSpan="3" align="center" style={{ color: '#64748b', padding: '20px' }}>
+                                        Chưa có hoạt động nào
+                                    </td>
+                                </tr>
+                            )}
+                        </tbody>
+                    </table>
                 </div>
             </div>
         </div>

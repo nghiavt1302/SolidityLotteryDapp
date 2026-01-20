@@ -2,8 +2,9 @@ pragma solidity ^0.8.0;
 
 import "./HustToken.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
+import "@openzeppelin/contracts/security/ReentrancyGuard.sol";
 
-contract TokenExchanger is Ownable {
+contract TokenExchanger is Ownable, ReentrancyGuard {
     HustToken public token;
     
     uint256 public constant RATE = 100000; // 1 ETH = 100k HST
@@ -30,7 +31,7 @@ contract TokenExchanger is Ownable {
     }
 
     // Rút HST -> ETH
-    function sellHST(uint256 _tokenAmount) external {
+    function sellHST(uint256 _tokenAmount) external nonReentrant {
         require(_tokenAmount > 0, "So luong > 0");
         
         uint256 rawEth = _tokenAmount / RATE;

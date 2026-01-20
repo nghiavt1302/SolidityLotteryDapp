@@ -42,25 +42,27 @@ function Navbar() {
 
   return (
     <nav className="navbar">
-      <div className="nav-brand">🎰 HUST Lottery</div>
-      <div className="nav-links">
-        <Link to="/" className={location.pathname === "/" ? "active" : ""}>Trang chủ</Link>
-        <Link to="/exchange" className={location.pathname === "/exchange" ? "active" : ""}>Ngân hàng</Link>
+      <div className="navbar-container">
+        <div className="nav-brand">🎰 HUST Lottery</div>
+        <div className="nav-links">
+          <Link to="/" className={location.pathname === "/" ? "active" : ""}>Trang chủ</Link>
+          <Link to="/exchange" className={location.pathname === "/exchange" ? "active" : ""}>Ngân hàng</Link>
 
-        {/* [MỚI] Chỉ hiện nút Admin nếu đúng là Admin */}
-        {isAdmin && (
-          <Link to="/admin" className={location.pathname === "/admin" ? "active" : ""} style={{ color: '#f59e0b' }}>
-            Admin
-          </Link>
-        )}
-      </div>
-      <div className="nav-right">
-        {isConnected && (
-          <div className="balance-badge">
-            💰 {hstBalance ? Number(formatEther(hstBalance)).toFixed(2) : "0"} HST
-          </div>
-        )}
-        <ConnectButton showBalance={true} chainStatus="icon" />
+          {/* [MỚI] Chỉ hiện nút Admin nếu đúng là Admin */}
+          {isAdmin && (
+            <Link to="/admin" className={location.pathname === "/admin" ? "active" : ""} style={{ color: '#f59e0b' }}>
+              Admin
+            </Link>
+          )}
+        </div>
+        <div className="nav-right">
+          {isConnected && (
+            <div className="balance-badge">
+              💰 {hstBalance ? Number(formatEther(hstBalance)).toFixed(2) : "0"} HST
+            </div>
+          )}
+          <ConnectButton showBalance={true} chainStatus="icon" />
+        </div>
       </div>
     </nav>
   );
