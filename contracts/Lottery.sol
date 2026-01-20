@@ -10,7 +10,7 @@ contract Lottery is Ownable {
     address[] public players;
     uint256 public jackpotPool;
     uint256 public endTime;
-    uint256 public lotteryDuration = 5 minutes; 
+    uint256 public lotteryDuration = 7 minutes; 
 
     uint256 public uniquePlayersCount;
     mapping(uint256 => mapping(address => bool)) public hasPlayedInRound;
@@ -20,6 +20,7 @@ contract Lottery is Ownable {
     uint256 public constant BASE_JACKPOT_CHANCE = 10;
     // Thêm 100 HST trong pool jackpot => + 0.01% xác suất
     uint256 public constant CHANCE_DIVISOR = 100 * 10**18; 
+    uint256 public constant CALLER_REWARD_PERCENT = 2; // 2% cho người quay số
 
     struct WinnerHistory {
         uint256 round;
@@ -95,6 +96,7 @@ contract Lottery is Ownable {
         uint256 currentBalance = token.balanceOf(address(this));
         uint256 adminFee = currentBalance / 1000; // Admin ăn 0,1% mỗi vòng
         uint256 prize = 0;
+        uint256 callerReward = 0;
         bool jackpotHit = false;
 
         // Quay jackpot
@@ -118,7 +120,11 @@ contract Lottery is Ownable {
             prize = currentBalance - adminFee; 
         }
         
+        callerReward = (prize * CALLER_REWARD_PERCENT) / 100;
+        prize = prize - callerReward;
+        
         token.transfer(owner(), adminFee);
+        token.transfer(msg.sender, callerReward);
         token.transfer(winner, prize);
 
         history.push(WinnerHistory(lotteryId, winner, prize, jackpotHit, block.timestamp));
