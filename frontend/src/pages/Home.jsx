@@ -1,31 +1,81 @@
 import React, { useState, useEffect, useMemo } from "react";
-import { useAccount, useReadContract, useWriteContract, useWaitForTransactionReceipt } from "wagmi";
-import { formatEther, parseEther, isAddress } from "ethers";
+import { useAccount, useReadContract, useWriteContract, useWaitForTransactionReceipt, useWatchContractEvent } from "wagmi";
+import { formatEther, parseEther, isAddress, Interface } from "ethers";
 import LotteryABI from "../artifacts/Lottery.json";
 import MyTokenABI from "../artifacts/HustToken.json";
 import { LOTTERY_ADDRESS, TOKEN_ADDRESS } from "../App";
 
 const shortenAddress = (addr) => addr ? `${addr.substring(0, 6)}...${addr.substring(addr.length - 4)}` : "";
 
+const Modal = ({ show, onClose, children }) => {
+    if (!show) return null;
+    return (
+        <div style={{
+            position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
+            backgroundColor: 'rgba(0, 0, 0, 0.7)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000
+        }}>
+            <div style={{
+                background: '#1e293b', padding: '30px', borderRadius: '15px', maxWidth: '500px', width: '90%',
+                position: 'relative', border: '2px solid #f59e0b', boxShadow: '0 0 20px rgba(245, 158, 11, 0.3)'
+            }}>
+                <button onClick={onClose} style={{
+                    position: 'absolute', top: '10px', right: '15px', background: 'none', border: 'none',
+                    color: '#94a3b8', fontSize: '1.5rem', cursor: 'pointer'
+                }}>×</button>
+                {children}
+            </div>
+        </div>
+    );
+};
+
 export default function Home() {
     const { address, isConnected } = useAccount();
     const { writeContract, data: hash } = useWriteContract();
-    const { isSuccess: isConfirmed, isLoading: isConfirming } = useWaitForTransactionReceipt({ hash });
+    const { isSuccess: isConfirmed, isLoading: isConfirming, data: receipt } = useWaitForTransactionReceipt({ hash });
 
     const [ticketQty, setTicketQty] = useState(1);
     const [referrer, setReferrer] = useState("");
+    const [winnerPopup, setWinnerPopup] = useState(null);
 
     const readConfig = { address: LOTTERY_ADDRESS, abi: LotteryABI.abi, query: { refetchInterval: 2000 } };
-    const { data: jackpotPool } = useReadContract({ ...readConfig, functionName: "jackpotPool" });
+    const { data: jackpotPool, refetch: refetchJackpot } = useReadContract({ ...readConfig, functionName: "jackpotPool" });
     const { data: endTime } = useReadContract({ ...readConfig, functionName: "endTime" });
     const { data: players, refetch: refetchPlayers } = useReadContract({ ...readConfig, functionName: "getPlayers" });
     const { data: history, refetch: refetchHistory } = useReadContract({ ...readConfig, functionName: "getHistory" });
-    const { data: uniqueCount } = useReadContract({ ...readConfig, functionName: "uniquePlayersCount" });
+    const { data: uniqueCount, refetch: refetchUniqueCount } = useReadContract({ ...readConfig, functionName: "uniquePlayersCount" });
     const { data: jackpotChance } = useReadContract({ ...readConfig, functionName: "getCurrentJackpotChance" });
+
+    // Listen for TicketPurchased events
+    useWatchContractEvent({
+        address: LOTTERY_ADDRESS,
+        abi: LotteryABI.abi,
+        eventName: 'TicketPurchased',
+        onLogs(logs) {
+            console.log('Ticket Purchased!', logs);
+            refetchPlayers();
+            refetchLotteryBalance();
+            refetchJackpot();
+            refetchUniqueCount();
+        },
+    });
 
     const { data: allowance, refetch: refetchAllowance } = useReadContract({
         address: TOKEN_ADDRESS, abi: MyTokenABI.abi, functionName: "allowance", args: [address, LOTTERY_ADDRESS], query: { refetchInterval: 1000 }
     });
+
+    // Lấy số dư HST của contract Lottery để tính quỹ vòng
+    const { data: lotteryTokenBalance, refetch: refetchLotteryBalance } = useReadContract({
+        address: TOKEN_ADDRESS, abi: MyTokenABI.abi, functionName: "balanceOf", args: [LOTTERY_ADDRESS], query: { refetchInterval: 2000 }
+    });
+
+    const currentRoundFund = useMemo(() => {
+        if (lotteryTokenBalance && jackpotPool) {
+            const balance = BigInt(lotteryTokenBalance);
+            const pool = BigInt(jackpotPool);
+            return balance > pool ? balance - pool : BigInt(0);
+        }
+        return BigInt(0);
+    }, [lotteryTokenBalance, jackpotPool]);
 
     const [timeLeft, setTimeLeft] = useState(0);
     useEffect(() => {
@@ -47,10 +97,42 @@ export default function Home() {
     }, [players]);
 
     useEffect(() => {
-        if (isConfirmed) {
-            refetchPlayers(); refetchAllowance(); refetchHistory();
+        if (isConfirmed && receipt) {
+            refetchPlayers(); refetchAllowance(); refetchHistory(); refetchLotteryBalance();
+            const lotteryLogs = receipt.logs.filter(l => l.address.toLowerCase() === LOTTERY_ADDRESS.toLowerCase());
         }
-    }, [isConfirmed]);
+    }, [isConfirmed, receipt]);
+
+    useEffect(() => {
+        if (isConfirmed && receipt) {
+            refetchPlayers(); refetchAllowance(); refetchHistory(); refetchLotteryBalance();
+
+            const iface = new Interface(LotteryABI.abi);
+
+            for (const log of receipt.logs) {
+                if (log.address.toLowerCase() === LOTTERY_ADDRESS.toLowerCase()) {
+                    try {
+                        const parsed = iface.parseLog({ topics: [...log.topics], data: log.data });
+                        if (parsed && parsed.name === "RoundResult") {
+                            setWinnerPopup({
+                                roundId: parsed.args.roundId.toString(),
+                                winner: parsed.args.winner,
+                                prize: parsed.args.prize,
+                                totalTickets: parsed.args.totalTickets,
+                                totalFund: parsed.args.totalFund,
+                                jackpotContribution: parsed.args.jackpotContribution,
+                                isJackpotHit: parsed.args.isJackpotHit,
+                                isMe: address && parsed.args.winner.toLowerCase() === address.toLowerCase()
+                            });
+                            break;
+                        }
+                    } catch (e) {
+                        // ignore other events
+                    }
+                }
+            }
+        }
+    }, [isConfirmed, receipt, address]);
 
     const handleBuy = () => {
         if (!ticketQty || ticketQty <= 0) return;
@@ -79,6 +161,12 @@ export default function Home() {
                         <div className="stat-box">
                             <div className="stat-label">Jackpot 🍯</div>
                             <div className="stat-value">{jackpotPool ? formatEther(jackpotPool) : "0"}</div>
+                        </div>
+                        <div className="stat-box">
+                            <div className="stat-label">Quỹ Vòng 💰</div>
+                            <div className="stat-value" style={{ color: '#38bdf8' }}>
+                                {formatEther(currentRoundFund)}
+                            </div>
                         </div>
                         <div className="stat-box">
                             <div className="stat-label">Thời gian ⏳</div>
@@ -162,6 +250,54 @@ export default function Home() {
                     </div>
                 </div>
             </div>
+
+            <Modal show={winnerPopup} onClose={() => setWinnerPopup(null)}>
+                <div style={{ textAlign: 'center' }}>
+                    <h2 style={{ color: '#f59e0b', fontSize: '2rem', marginBottom: '10px' }}>
+                        {winnerPopup?.isJackpotHit ? "💥 JACKPOT HIT! 💥" : "🎉 KẾT QUẢ VÒNG QUAY 🎉"}
+                    </h2>
+
+                    {winnerPopup?.isMe && (
+                        <div style={{
+                            background: 'linear-gradient(45deg, #f59e0b, #ec4899)',
+                            padding: '10px', borderRadius: '8px',
+                            color: 'white', fontWeight: 'bold', marginBottom: '20px',
+                            animation: 'pulse 1s infinite'
+                        }}>
+                            🏆 CHÚC MỪNG! BẠN LÀ NGƯỜI CHIẾN THẮNG! 🏆
+                        </div>
+                    )}
+
+                    <div style={{ margin: '20px 0', fontSize: '1.2rem' }}>
+                        <div style={{ marginBottom: '10px' }}>
+                            <span style={{ color: '#94a3b8' }}>Người thắng:</span><br />
+                            <span style={{ color: '#38bdf8', fontWeight: 'bold', fontSize: '1.4rem' }}>
+                                {winnerPopup ? shortenAddress(winnerPopup.winner) : ""}
+                            </span>
+                        </div>
+
+                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '15px', background: '#0f172a', padding: '15px', borderRadius: '10px' }}>
+                            <div>
+                                <div style={{ fontSize: '0.9rem', color: '#94a3b8' }}>Tổng quỹ vòng</div>
+                                <div style={{ fontSize: '1.1rem', color: '#22c55e' }}>{winnerPopup ? formatEther(winnerPopup.totalFund) : 0} HST</div>
+                            </div>
+                            <div>
+                                <div style={{ fontSize: '0.9rem', color: '#94a3b8' }}>Số vé bán ra</div>
+                                <div style={{ fontSize: '1.1rem', color: '#f59e0b' }}>{winnerPopup ? winnerPopup.totalTickets.toString() : 0}</div>
+                            </div>
+                            <div>
+                                <div style={{ fontSize: '0.9rem', color: '#94a3b8' }}>Góp Jackpot</div>
+                                <div style={{ fontSize: '1.1rem', color: '#ec4899' }}>{winnerPopup ? formatEther(winnerPopup.jackpotContribution) : 0} HST</div>
+                            </div>
+                            <div>
+                                <div style={{ fontSize: '0.9rem', color: '#94a3b8' }}>Giải thưởng</div>
+                                <div style={{ fontSize: '1.3rem', color: '#22c55e', fontWeight: 'bold' }}>{winnerPopup ? formatEther(winnerPopup.prize) : 0} HST</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </Modal>
         </div>
     );
+
 }

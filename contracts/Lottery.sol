@@ -2,9 +2,11 @@
 pragma solidity ^0.8.0;
 
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
 
 contract Lottery is Ownable {
+    using SafeERC20 for IERC20;
     IERC20 public token;
     uint256 public ticketPrice;
     uint256 public lotteryId;
@@ -34,6 +36,15 @@ contract Lottery is Ownable {
 
     event TicketPurchased(address indexed player, uint256 amount);
     event WinnerPicked(address indexed winner, uint256 amount, bool isJackpotHit);
+    event RoundResult(
+        uint256 roundId,
+        address winner,
+        uint256 prize,
+        uint256 totalTickets,
+        uint256 totalFund,
+        uint256 jackpotContribution,
+        bool isJackpotHit
+    );
     event RoundEndedEmpty(uint256 round);
     event DurationUpdated(uint256 newDuration);
 
@@ -60,7 +71,7 @@ contract Lottery is Ownable {
     function buyTickets(uint256 _quantity, address _referrer) external {
         require(block.timestamp < endTime, "Vong choi da ket thuc");
         uint256 totalCost = ticketPrice * _quantity;
-        token.transferFrom(msg.sender, address(this), totalCost);
+        token.safeTransferFrom(msg.sender, address(this), totalCost);
 
         if (!hasPlayedInRound[lotteryId][msg.sender]) {
             hasPlayedInRound[lotteryId][msg.sender] = true;
@@ -72,8 +83,7 @@ contract Lottery is Ownable {
         }
 
         if (_referrer != address(0) && _referrer != msg.sender) {
-            // Hoa hồng 1% tiền mua vé cho người giới thiệu
-            token.transfer(_referrer, (totalCost * 1) / 100);
+            token.safeTransfer(_referrer, (totalCost * 1) / 100);
         }
 
         emit TicketPurchased(msg.sender, _quantity);
@@ -90,72 +100,73 @@ contract Lottery is Ownable {
             return;
         }
 
+        bytes32 bHash = blockhash(block.number - 1);
+        if (block.number > 256 && bHash == bytes32(0)) {
+            bHash = bytes32(block.prevrandao);
+        }
+
         bytes32 entropy = keccak256(abi.encodePacked(
-            blockhash(block.number - 1),
-            block.prevrandao,
-            block.timestamp,
-            players.length,
-            uniquePlayersCount,
-            msg.sender
+            bHash, block.prevrandao, block.timestamp, players.length, uniquePlayersCount, msg.sender
         ));
         
         uint256 randomIndex = uint256(entropy) % players.length;
         address winner = players[randomIndex];
 
         uint256 currentBalance = token.balanceOf(address(this));
-        uint256 adminFee = currentBalance / 1000;
-        uint256 prize = 0;
+        require(currentBalance >= jackpotPool, "Failed: Thieu quy cho jackpot");
+
+        uint256 roundRevenue = currentBalance - jackpotPool;
+        uint256 totalTickets = players.length; // Tổng số vé của vòng
+        uint256 totalFund = roundRevenue;      // Tổng quỹ của vòng
+        
+        uint256 adminFee = roundRevenue / 1000; // 0.1% doanh thu
         uint256 callerReward = 0;
+        uint256 prize = 0; // Giải cho người thắng
+        uint256 toJackpot = 0;
         bool jackpotHit = false;
 
         if (uniquePlayersCount >= MIN_PLAYERS_FOR_JACKPOT) {
-             uint256 toJackpot = (currentBalance * 10) / 100;
+             toJackpot = (roundRevenue * 10) / 100; // 10% vòng này nạp vào quỹ JP
+             
+             // Check Max Jackpot Cap
              if (jackpotPool + toJackpot > MAX_JACKPOT) {
                  uint256 actualAdd = MAX_JACKPOT - jackpotPool; 
                  jackpotPool = MAX_JACKPOT;
-                 toJackpot = actualAdd; 
+                 toJackpot = actualAdd; // Actual added amount
              } else {
                  jackpotPool += toJackpot;
              }
+             prize = roundRevenue - adminFee - toJackpot;
 
              uint256 chance = getCurrentJackpotChance();
-             
-             bytes32 jackpotEntropy = keccak256(abi.encodePacked(
-                 entropy,
-                 winner,
-                 jackpotPool,
-                 block.number
-             ));
-             
+             bytes32 jackpotEntropy = keccak256(abi.encodePacked(entropy, winner, jackpotPool));
              uint256 jackpotRoll = uint256(jackpotEntropy) % 10000;
              
              if (jackpotRoll < chance) {
-                 // Nổ hũ jackpot
                  jackpotHit = true;
-                 prize = (currentBalance - adminFee - toJackpot) + jackpotPool;
-                 jackpotPool = 0;
-             } else {
-                 prize = currentBalance - adminFee - toJackpot;
+                 prize = prize + jackpotPool;
+                 jackpotPool = 0; 
              }
         } else {
-            prize = currentBalance - adminFee; 
+            prize = roundRevenue - adminFee;
         }
         
         callerReward = (prize * CALLER_REWARD_PERCENT) / 100;
         prize = prize - callerReward;
         
-        token.transfer(owner(), adminFee);
-        token.transfer(msg.sender, callerReward);
-        token.transfer(winner, prize);
+        token.safeTransfer(owner(), adminFee);
+        token.safeTransfer(msg.sender, callerReward);
+        token.safeTransfer(winner, prize);
 
         history.push(WinnerHistory(lotteryId, winner, prize, jackpotHit, block.timestamp));
         emit WinnerPicked(winner, prize, jackpotHit);
+        emit RoundResult(lotteryId, winner, prize, totalTickets, totalFund, toJackpot, jackpotHit);
 
         _resetGame();
     }
 
     function _resetGame() private {
-        delete players;
+        players = new address[](0);
         uniquePlayersCount = 0;
         lotteryId++;
         endTime = block.timestamp + lotteryDuration;

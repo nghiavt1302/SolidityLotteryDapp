@@ -1,10 +1,10 @@
+// SPDX-License-Identifier: MIT
 pragma solidity ^0.8.0;
 
 import "./HustToken.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
-import "@openzeppelin/contracts/security/ReentrancyGuard.sol";
 
-contract TokenExchanger is Ownable, ReentrancyGuard {
+contract TokenExchanger is Ownable {
     HustToken public token;
     
     uint256 public constant RATE = 100000; // 1 ETH = 100k HST
@@ -30,8 +30,7 @@ contract TokenExchanger is Ownable, ReentrancyGuard {
         emit TokensPurchased(msg.sender, msg.value, tokenAmount);
     }
 
-    // Rút HST -> ETH
-    function sellHST(uint256 _tokenAmount) external nonReentrant {
+    function sellHST(uint256 _tokenAmount) external {
         require(_tokenAmount > 0, "So luong > 0");
         
         uint256 rawEth = _tokenAmount / RATE;
@@ -41,7 +40,9 @@ contract TokenExchanger is Ownable, ReentrancyGuard {
         require(address(this).balance >= ethToTransfer, "Exchanger khong du ETH thanh khoan");
 
         token.burnFrom(msg.sender, _tokenAmount);
-        payable(msg.sender).transfer(ethToTransfer);
+
+        (bool success, ) = payable(msg.sender).call{value: ethToTransfer}("");
+        require(success, "Rut ETH that bai");
 
         emit TokensSold(msg.sender, _tokenAmount, ethToTransfer, fee);
     }
@@ -58,13 +59,11 @@ contract TokenExchanger is Ownable, ReentrancyGuard {
         uint256 requiredReserve = currentSupply / RATE; 
 
         uint256 balanceAfterWithdraw = address(this).balance - _amount;
-        
-        require(
-            balanceAfterWithdraw >= requiredReserve, 
-            "KHONG DUOC RUT: Phai de lai ETH bao chung cho so HST dang luu hanh!"
-        );
+        require(balanceAfterWithdraw >= requiredReserve, "Phai giu lai du von bao chung!");
 
-        payable(owner()).transfer(_amount);
+        (bool success, ) = payable(owner()).call{value: _amount}("");
+        require(success, "Rut ETH that bai");
+
         emit FeesWithdrawn(_amount);
     }
 
