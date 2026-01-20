@@ -6,6 +6,28 @@ import MyTokenABI from "../artifacts/HustToken.json";
 import { EXCHANGER_ADDRESS, TOKEN_ADDRESS } from "../App";
 import { createPublicClient, http, parseAbiItem } from 'viem';
 import { hardhat } from 'viem/chains';
+import { Interface } from "ethers";
+
+const Modal = ({ show, onClose, children }) => {
+    if (!show) return null;
+    return (
+        <div style={{
+            position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
+            backgroundColor: 'rgba(0, 0, 0, 0.7)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000
+        }}>
+            <div style={{
+                background: '#1e293b', padding: '30px', borderRadius: '15px', maxWidth: '500px', width: '90%',
+                position: 'relative', border: '2px solid #38bdf8', boxShadow: '0 0 20px rgba(56, 189, 248, 0.3)'
+            }}>
+                <button onClick={onClose} style={{
+                    position: 'absolute', top: '10px', right: '15px', background: 'none', border: 'none',
+                    color: '#94a3b8', fontSize: '1.5rem', cursor: 'pointer'
+                }}>×</button>
+                {children}
+            </div>
+        </div>
+    );
+};
 
 const RATE = 100000;
 
@@ -14,9 +36,58 @@ export default function Exchange() {
     const [tab, setTab] = useState("BUY");
     const [amount, setAmount] = useState("");
     const [history, setHistory] = useState([]);
+    const [exchangePopup, setExchangePopup] = useState(null);
+    const [preTxBalanceHST, setPreTxBalanceHST] = useState("0");
 
     const { writeContract, data: hash } = useWriteContract();
-    const { isSuccess, isLoading } = useWaitForTransactionReceipt({ hash });
+    const { isSuccess, isLoading, data: receipt } = useWaitForTransactionReceipt({ hash });
+
+    // HST Balance of user
+    const { data: userHST, refetch: refetchUserHST } = useReadContract({
+        address: TOKEN_ADDRESS, abi: MyTokenABI.abi, functionName: "balanceOf", args: [address], query: { refetchInterval: 2000 }
+    });
+
+    // ETH Balance? We can use wagmi hook if needed, but for popup we need HST mainly for "Buy" case.
+    // For "Sell" case: we need ETH balance? Request says "Thực nhận {Đ} ETH". We can calculate this from event logs (amount - fee).
+
+    useEffect(() => {
+        if (isSuccess && receipt) {
+            fetchHistory(); refetchAllowance();
+            refetchUserHST().then((res) => {
+                const newBal = res.data ? formatEther(res.data) : "0";
+                const oldBal = preTxBalanceHST;
+
+                // Parse logs to find details
+                const iface = new Interface(ExchangerABI.abi);
+                for (const log of receipt.logs) {
+                    if (log.address.toLowerCase() === EXCHANGER_ADDRESS.toLowerCase()) {
+                        try {
+                            const parsed = iface.parseLog({ topics: [...log.topics], data: log.data });
+                            if (parsed) {
+                                if (parsed.name === "TokensPurchased" && parsed.args.buyer.toLowerCase() === address.toLowerCase()) {
+                                    setExchangePopup({
+                                        type: "BUY",
+                                        ethAmount: formatEther(parsed.args.ethAmount),
+                                        hstAmount: formatEther(parsed.args.tokenAmount),
+                                        initialHST: oldBal,
+                                        finalHST: newBal
+                                    });
+                                } else if (parsed.name === "TokensSold" && parsed.args.seller.toLowerCase() === address.toLowerCase()) {
+                                    setExchangePopup({
+                                        type: "SELL",
+                                        hstAmount: formatEther(parsed.args.tokenAmount),
+                                        ethEquivalent: formatEther(parsed.args.ethAmount + parsed.args.fee), // ethAmount is net received?
+                                        fee: formatEther(parsed.args.fee),
+                                        netReceived: formatEther(parsed.args.ethAmount)
+                                    });
+                                }
+                            }
+                        } catch (e) { }
+                    }
+                }
+            });
+        }
+    }, [isSuccess, receipt]);
 
     const { data: allowance, refetch: refetchAllowance } = useReadContract({
         address: TOKEN_ADDRESS, abi: MyTokenABI.abi, functionName: "allowance", args: [address, EXCHANGER_ADDRESS]
@@ -52,6 +123,10 @@ export default function Exchange() {
 
     const handleExecute = () => {
         if (!amount) return;
+
+        // Capture current HST balance
+        setPreTxBalanceHST(userHST ? formatEther(userHST) : "0");
+
         if (tab === "BUY") {
             writeContract({
                 address: EXCHANGER_ADDRESS, abi: ExchangerABI.abi, functionName: "buyHST", value: parseEther(amount)
@@ -138,6 +213,51 @@ export default function Exchange() {
                     </table>
                 </div>
             </div>
+            <Modal show={exchangePopup} onClose={() => setExchangePopup(null)}>
+                <div style={{ textAlign: 'center' }}>
+                    {exchangePopup?.type === "BUY" ? (
+                        <>
+                            <div style={{ fontSize: '3rem', marginBottom: '10px' }}>💎</div>
+                            <h2 style={{ color: '#22c55e', marginBottom: '15px' }}>Nạp ETH thành công!</h2>
+                            <p>Bạn đã nạp <strong style={{ color: '#38bdf8' }}>{exchangePopup?.ethAmount} ETH</strong></p>
+                            <div style={{ background: '#0f172a', padding: '15px', borderRadius: '8px', marginTop: '15px', textAlign: 'left' }}>
+                                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '5px' }}>
+                                    <span style={{ color: '#94a3b8' }}>Số dư cũ:</span>
+                                    <span>{Number(exchangePopup?.initialHST).toLocaleString()} HST</span>
+                                </div>
+                                <div style={{ display: 'flex', justifyContent: 'space-between', borderTop: '1px solid #334155', paddingTop: '5px' }}>
+                                    <span style={{ color: '#22c55e', fontWeight: 'bold' }}>Số dư mới:</span>
+                                    <span style={{ color: '#22c55e', fontWeight: 'bold' }}>{Number(exchangePopup?.finalHST).toLocaleString()} HST</span>
+                                </div>
+                            </div>
+                        </>
+                    ) : (
+                        <>
+                            <div style={{ fontSize: '3rem', marginBottom: '10px' }}>💸</div>
+                            <h2 style={{ color: '#38bdf8', marginBottom: '15px' }}>Rút HST thành công!</h2>
+                            <div style={{ background: '#0f172a', padding: '15px', borderRadius: '8px', marginTop: '15px', textAlign: 'left' }}>
+                                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '5px' }}>
+                                    <span style={{ color: '#94a3b8' }}>Đã quy đổi:</span>
+                                    <span>{Number(exchangePopup?.hstAmount).toLocaleString()} HST</span>
+                                </div>
+                                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '5px' }}>
+                                    <span style={{ color: '#94a3b8' }}>Giá trị tương đương:</span>
+                                    <span>{Number(exchangePopup?.ethEquivalent).toFixed(6)} ETH</span>
+                                </div>
+                                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '5px' }}>
+                                    <span style={{ color: '#ef4444' }}>Phí quy đổi (3.3%):</span>
+                                    <span>-{Number(exchangePopup?.fee).toFixed(6)} ETH</span>
+                                </div>
+                                <div style={{ display: 'flex', justifyContent: 'space-between', borderTop: '1px solid #334155', paddingTop: '5px' }}>
+                                    <span style={{ color: '#22c55e', fontWeight: 'bold' }}>Thực nhận:</span>
+                                    <span style={{ color: '#22c55e', fontWeight: 'bold' }}>{Number(exchangePopup?.netReceived).toFixed(6)} ETH</span>
+                                </div>
+                            </div>
+                        </>
+                    )}
+                    <button onClick={() => setExchangePopup(null)} className="btn-primary" style={{ marginTop: '20px', width: '50%' }}>OK</button>
+                </div>
+            </Modal>
         </div>
     );
 }

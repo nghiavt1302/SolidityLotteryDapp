@@ -15,12 +15,11 @@ export default function Admin() {
 
     const { data: owner } = useReadContract({ address: LOTTERY_ADDRESS, abi: LotteryABI.abi, functionName: "owner" });
 
-    // Đọc số lượng HST trong TokenExchanger
-    const { data: exchangerHSTBalance } = useReadContract({
+    // Đọc số lượng HST lưu hành (Total Supply)
+    const { data: circulatingHST } = useReadContract({
         address: TOKEN_ADDRESS,
         abi: TokenABI.abi,
-        functionName: "balanceOf",
-        args: [EXCHANGER_ADDRESS],
+        functionName: "totalSupply",
         query: { refetchInterval: 2000 }
     });
 
@@ -145,7 +144,7 @@ export default function Admin() {
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingTop: '10px', borderTop: '1px solid #e0f2fe' }}>
                         <span style={{ fontSize: '14px', color: '#64748b' }}>🪙 HST đang lưu hành:</span>
                         <span style={{ fontSize: '18px', fontWeight: 'bold', color: '#0284c7' }}>
-                            {exchangerHSTBalance ? Number(formatEther(exchangerHSTBalance)).toLocaleString() : "0"} HST
+                            {circulatingHST ? Number(formatEther(circulatingHST)).toLocaleString() : "0"} HST
                         </span>
                     </div>
                 </div>

@@ -36,6 +36,7 @@ export default function Home() {
     const [ticketQty, setTicketQty] = useState(1);
     const [referrer, setReferrer] = useState("");
     const [winnerPopup, setWinnerPopup] = useState(null);
+    const [buySuccessPopup, setBuySuccessPopup] = useState(null);
 
     const readConfig = { address: LOTTERY_ADDRESS, abi: LotteryABI.abi, query: { refetchInterval: 2000 } };
     const { data: jackpotPool, refetch: refetchJackpot } = useReadContract({ ...readConfig, functionName: "jackpotPool" });
@@ -69,7 +70,7 @@ export default function Home() {
     });
 
     const currentRoundFund = useMemo(() => {
-        if (lotteryTokenBalance && jackpotPool) {
+        if (lotteryTokenBalance !== undefined && jackpotPool !== undefined) {
             const balance = BigInt(lotteryTokenBalance);
             const pool = BigInt(jackpotPool);
             return balance > pool ? balance - pool : BigInt(0);
@@ -100,6 +101,45 @@ export default function Home() {
         if (isConfirmed && receipt) {
             refetchPlayers(); refetchAllowance(); refetchHistory(); refetchLotteryBalance();
             const lotteryLogs = receipt.logs.filter(l => l.address.toLowerCase() === LOTTERY_ADDRESS.toLowerCase());
+
+            // Check if it's a Buy ticket transaction (TicketPurchased)
+            // Since we don't have easy decode, checking if log count > 0 is a hint, OR assume successful tx + input involved.
+            // Better: Parse logs. TicketPurchased topic0.
+            const iface = new Interface(LotteryABI.abi);
+            for (const log of receipt.logs) {
+                if (log.address.toLowerCase() === LOTTERY_ADDRESS.toLowerCase()) {
+                    try {
+                        const parsed = iface.parseLog({ topics: [...log.topics], data: log.data });
+                        if (parsed && parsed.name === "TicketPurchased" && parsed.args.player.toLowerCase() === address.toLowerCase()) {
+                            // Found our buy event
+                            const boughtQty = parsed.args.amount.toString();
+
+                            // Calculate total owned. Using `players` data which should be updated or we use the local knowledge + optimistic
+                            // Refetch might not be fast enough.
+                            // But we can count from players list if available (players might be stale).
+                            // Let's assume refetchPlayers was called. But React update is async.
+                            // We can manually counting from existing `players` + boughtQty IF players isn't updated?
+                            // Or just wait? 
+                            // Wait, refetch is async.
+                            // Let's rely on `players` data? No, it might not be updated yet in this render cycle.
+                            // Best approach: Optimistic calc.
+
+                            let currentOwned = 0;
+                            if (players) {
+                                players.forEach(p => { if (p.toLowerCase() === address.toLowerCase()) currentOwned++; });
+                            }
+                            // Note: `players` here is STALE (from previous render). 
+                            // So new total = currentOwned + Number(boughtQty).
+
+                            setBuySuccessPopup({
+                                bought: boughtQty,
+                                total: currentOwned + Number(boughtQty)
+                            });
+                            break;
+                        }
+                    } catch (e) { }
+                }
+            }
         }
     }, [isConfirmed, receipt]);
 
@@ -295,6 +335,22 @@ export default function Home() {
                             </div>
                         </div>
                     </div>
+                </div>
+            </Modal>
+
+            <Modal show={buySuccessPopup} onClose={() => setBuySuccessPopup(null)}>
+                <div style={{ textAlign: 'center' }}>
+                    <div style={{ fontSize: '3rem', marginBottom: '10px' }}>🎟️</div>
+                    <h2 style={{ color: '#22c55e', marginBottom: '15px' }}>Mua vé thành công!</h2>
+                    <p style={{ fontSize: '1.1rem', marginBottom: '5px' }}>
+                        Bạn đã mua thành công <strong style={{ color: '#f59e0b', fontSize: '1.2rem' }}>{buySuccessPopup?.bought}</strong> vé.
+                    </p>
+                    <p style={{ fontSize: '1.1rem' }}>
+                        Vòng này bạn đang sở hữu tổng <strong style={{ color: '#f59e0b', fontSize: '1.2rem' }}>{buySuccessPopup?.total}</strong> vé.
+                    </p>
+                    <button onClick={() => setBuySuccessPopup(null)} className="btn-primary" style={{ marginTop: '20px', width: '50%' }}>
+                        OK
+                    </button>
                 </div>
             </Modal>
         </div>

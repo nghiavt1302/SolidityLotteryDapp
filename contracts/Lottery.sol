@@ -122,22 +122,21 @@ contract Lottery is Ownable {
         uint256 adminFee = roundRevenue / 1000; // 0.1% doanh thu
         uint256 callerReward = 0;
         uint256 prize = 0; // Giải cho người thắng
-        uint256 toJackpot = 0;
+        uint256 toJackpot = (roundRevenue * 10) / 100; // 10% vòng trích vào quỹ JP
         bool jackpotHit = false;
 
-        if (uniquePlayersCount >= MIN_PLAYERS_FOR_JACKPOT) {
-             toJackpot = (roundRevenue * 10) / 100; // 10% vòng này nạp vào quỹ JP
-             
-             // Check Max Jackpot Cap
-             if (jackpotPool + toJackpot > MAX_JACKPOT) {
-                 uint256 actualAdd = MAX_JACKPOT - jackpotPool; 
-                 jackpotPool = MAX_JACKPOT;
-                 toJackpot = actualAdd; // Actual added amount
-             } else {
-                 jackpotPool += toJackpot;
-             }
-             prize = roundRevenue - adminFee - toJackpot;
+        // Check Max Jackpot Cap
+        if (jackpotPool + toJackpot > MAX_JACKPOT) {
+            uint256 actualAdd = MAX_JACKPOT - jackpotPool; 
+            jackpotPool = MAX_JACKPOT;
+            toJackpot = actualAdd; // Actual added amount
+        } else {
+            jackpotPool += toJackpot;
+        }
 
+        prize = roundRevenue - adminFee - toJackpot;
+
+        if (uniquePlayersCount >= MIN_PLAYERS_FOR_JACKPOT) {
              uint256 chance = getCurrentJackpotChance();
              bytes32 jackpotEntropy = keccak256(abi.encodePacked(entropy, winner, jackpotPool));
              uint256 jackpotRoll = uint256(jackpotEntropy) % 10000;
@@ -147,8 +146,6 @@ contract Lottery is Ownable {
                  prize = prize + jackpotPool;
                  jackpotPool = 0; 
              }
-        } else {
-            prize = roundRevenue - adminFee;
         }
         
         callerReward = (prize * CALLER_REWARD_PERCENT) / 100;
