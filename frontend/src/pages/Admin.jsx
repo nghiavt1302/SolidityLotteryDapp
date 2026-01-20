@@ -42,39 +42,32 @@ export default function Admin() {
     const [withdrawAmt, setWithdrawAmt] = useState("");
     const [history, setHistory] = useState([]);
 
-    // Fetch admin activity history
     const fetchHistory = async () => {
         if (!address) return;
         const client = createPublicClient({ chain: hardhat, transport: http() });
 
         try {
-            // Lấy logs nạp vốn (LiquidityAdded)
             const liquidityLogs = await client.getLogs({
                 address: EXCHANGER_ADDRESS,
                 event: parseAbiItem('event LiquidityAdded(uint256 ethAmount)'),
                 fromBlock: 'earliest'
             });
 
-            // Lấy logs rút lãi (FeesWithdrawn)
             const withdrawLogs = await client.getLogs({
                 address: EXCHANGER_ADDRESS,
                 event: parseAbiItem('event FeesWithdrawn(uint256 ethAmount)'),
                 fromBlock: 'earliest'
             });
 
-            // Lấy logs thay đổi thời gian lottery (nếu có event)
-            // Note: Cần kiểm tra xem Lottery contract có emit event khi setLotteryDuration không
-            // Giả sử có event LotteryDurationUpdated(uint256 newDuration)
             let durationLogs = [];
             try {
                 durationLogs = await client.getLogs({
                     address: LOTTERY_ADDRESS,
-                    event: parseAbiItem('event LotteryDurationUpdated(uint256 newDuration)'),
+                    event: parseAbiItem('event DurationUpdated(uint256 newDuration)'),
                     fromBlock: 'earliest'
                 });
             } catch (e) {
-                // Event không tồn tại, bỏ qua
-                console.log("LotteryDurationUpdated event not found");
+                console.log("DurationUpdated event not found");
             }
 
             const formattedHistory = [
@@ -99,7 +92,7 @@ export default function Admin() {
                     hash: l.transactionHash,
                     blockNumber: l.blockNumber
                 }))
-            ].sort((a, b) => Number(b.blockNumber) - Number(a.blockNumber));
+            ].sort((a, b) => (a.blockNumber < b.blockNumber ? 1 : -1));
 
             setHistory(formattedHistory);
         } catch (error) {
@@ -111,6 +104,27 @@ export default function Admin() {
         fetchHistory();
     }, [address, isSuccess]);
 
+    const handleSetDuration = () => {
+        if (!newDuration || isNaN(newDuration) || Number(newDuration) < 60) {
+            return alert("Vui lòng nhập thời gian tối thiểu 60 giây!");
+        }
+        writeContract({ address: LOTTERY_ADDRESS, abi: LotteryABI.abi, functionName: "setLotteryDuration", args: [BigInt(newDuration)] });
+    }
+
+    const handleDeposit = () => {
+        if (!depositAmt || isNaN(depositAmt) || Number(depositAmt) <= 0) {
+            return alert("Vui lòng nhập số ETH hợp lệ!");
+        }
+        writeContract({ address: EXCHANGER_ADDRESS, abi: ExchangerABI.abi, functionName: "depositLiquidity", value: parseEther(depositAmt) });
+    }
+
+    const handleWithdraw = () => {
+        if (!withdrawAmt || isNaN(withdrawAmt) || Number(withdrawAmt) <= 0) {
+            return alert("Vui lòng nhập số ETH hợp lệ!");
+        }
+        writeContract({ address: EXCHANGER_ADDRESS, abi: ExchangerABI.abi, functionName: "withdrawETH", args: [parseEther(withdrawAmt)] });
+    }
+
     if (!address || !owner || address.toLowerCase() !== owner.toLowerCase()) {
         return <div className="center-msg">Bạn không phải Admin.</div>;
     }
@@ -120,19 +134,14 @@ export default function Admin() {
             <div className="card" style={{ border: '1px solid #f59e0b' }}>
                 <h2 style={{ color: '#f59e0b' }}>⚙️ Admin Dashboard</h2>
 
-                {/* Thông tin Exchanger */}
                 <div className="admin-section" style={{ background: '#f0f9ff', padding: '15px', borderRadius: '8px', marginBottom: '20px' }}>
                     <h4 style={{ color: '#0284c7', marginTop: 0 }}>📊 Thông Tin Exchanger</h4>
-
-                    {/* ETH Balance - Vốn thanh khoản */}
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
                         <span style={{ fontSize: '14px', color: '#64748b' }}>💰 Vốn thanh khoản (ETH):</span>
                         <span style={{ fontSize: '20px', fontWeight: 'bold', color: '#10b981' }}>
                             {exchangerETHBalance ? Number(formatEther(exchangerETHBalance.value)).toFixed(4) : "0"} ETH
                         </span>
                     </div>
-
-                    {/* HST Balance */}
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingTop: '10px', borderTop: '1px solid #e0f2fe' }}>
                         <span style={{ fontSize: '14px', color: '#64748b' }}>🪙 HST đang lưu hành:</span>
                         <span style={{ fontSize: '18px', fontWeight: 'bold', color: '#0284c7' }}>
@@ -141,7 +150,6 @@ export default function Admin() {
                     </div>
                 </div>
 
-                {/* Thông tin Admin Wallet */}
                 <div className="admin-section" style={{ background: '#fef3c7', padding: '15px', borderRadius: '8px', marginBottom: '20px' }}>
                     <h4 style={{ color: '#d97706', marginTop: 0 }}>👤 Ví Admin</h4>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -168,10 +176,7 @@ export default function Admin() {
                         />
                         <span style={{ paddingRight: '15px', fontWeight: 'bold', color: '#64748b' }}>giây</span>
                     </div>
-                    <button
-                        onClick={() => writeContract({ address: LOTTERY_ADDRESS, abi: LotteryABI.abi, functionName: "setLotteryDuration", args: [BigInt(newDuration)] })}
-                        className="btn-primary"
-                    >
+                    <button onClick={handleSetDuration} className="btn-primary">
                         Cập nhật
                     </button>
                 </div>
@@ -188,11 +193,7 @@ export default function Admin() {
                         />
                         <span style={{ paddingRight: '15px', fontWeight: 'bold', color: '#64748b' }}>ETH</span>
                     </div>
-                    <button
-                        onClick={() => writeContract({ address: EXCHANGER_ADDRESS, abi: ExchangerABI.abi, functionName: "depositLiquidity", value: parseEther(depositAmt) })}
-                        className="btn-primary"
-                        style={{ background: '#22c55e', marginBottom: '15px' }}
-                    >
+                    <button onClick={handleDeposit} className="btn-primary" style={{ background: '#22c55e', marginBottom: '15px' }}>
                         Nạp Vốn
                     </button>
 
@@ -206,59 +207,26 @@ export default function Admin() {
                         />
                         <span style={{ paddingRight: '15px', fontWeight: 'bold', color: '#64748b' }}>ETH</span>
                     </div>
-                    <button
-                        onClick={() => writeContract({ address: EXCHANGER_ADDRESS, abi: ExchangerABI.abi, functionName: "withdrawETH", args: [parseEther(withdrawAmt)] })}
-                        className="btn-danger"
-                    >
+                    <button onClick={handleWithdraw} className="btn-danger">
                         Rút Lãi
                     </button>
                 </div>
             </div>
 
-            {/* Lịch sử hoạt động Admin */}
             <div className="card" style={{ border: '1px solid #f59e0b' }}>
                 <h3 style={{ color: '#f59e0b' }}>📜 Lịch sử hoạt động Admin</h3>
                 <div className="scroll-box" style={{ maxHeight: '500px', overflowY: 'auto' }}>
                     <table>
-                        <thead>
-                            <tr>
-                                <th>Loại</th>
-                                <th>Số lượng</th>
-                                <th>Tx</th>
-                            </tr>
-                        </thead>
+                        <thead><tr><th>Loại</th><th>Số lượng</th><th>Tx</th></tr></thead>
                         <tbody>
                             {history.map((h, i) => (
                                 <tr key={i}>
-                                    <td style={{
-                                        color: h.type === 'NẠP VỐN' ? '#22c55e' : h.type === 'RÚT LÃI' ? '#ef4444' : '#f59e0b',
-                                        fontWeight: 'bold',
-                                        fontSize: '0.85rem'
-                                    }}>
-                                        {h.type}
-                                    </td>
-                                    <td style={{ fontSize: '0.9rem' }}>
-                                        {h.type === 'ĐỔI THỜI GIAN' ? h.amount : Number(h.amount).toFixed(4)} {h.unit}
-                                    </td>
-                                    <td>
-                                        <a
-                                            href={`https://sepolia.etherscan.io/tx/${h.hash}`}
-                                            target="_blank"
-                                            rel="noreferrer"
-                                            style={{ color: '#38bdf8', textDecoration: 'none', fontSize: '0.85rem' }}
-                                        >
-                                            Xem
-                                        </a>
-                                    </td>
+                                    <td style={{ color: h.type === 'NẠP VỐN' ? '#22c55e' : h.type === 'RÚT LÃI' ? '#ef4444' : '#f59e0b', fontWeight: 'bold', fontSize: '0.85rem' }}>{h.type}</td>
+                                    <td style={{ fontSize: '0.9rem' }}>{h.type === 'ĐỔI THỜI GIAN' ? h.amount : Number(h.amount).toFixed(4)} {h.unit}</td>
+                                    <td><a href={`https://sepolia.etherscan.io/tx/${h.hash}`} target="_blank" rel="noreferrer" style={{ color: '#38bdf8', textDecoration: 'none', fontSize: '0.85rem' }}>Xem</a></td>
                                 </tr>
                             ))}
-                            {history.length === 0 && (
-                                <tr>
-                                    <td colSpan="3" align="center" style={{ color: '#64748b', padding: '20px' }}>
-                                        Chưa có hoạt động nào
-                                    </td>
-                                </tr>
-                            )}
+                            {history.length === 0 && <tr><td colSpan="3" align="center" style={{ color: '#64748b', padding: '20px' }}>Chưa có hoạt động nào</td></tr>}
                         </tbody>
                     </table>
                 </div>

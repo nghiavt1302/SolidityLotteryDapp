@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo } from "react";
 import { useAccount, useReadContract, useWriteContract, useWaitForTransactionReceipt } from "wagmi";
-import { formatEther, parseEther } from "ethers";
+import { formatEther, parseEther, isAddress } from "ethers";
 import LotteryABI from "../artifacts/Lottery.json";
 import MyTokenABI from "../artifacts/HustToken.json";
 import { LOTTERY_ADDRESS, TOKEN_ADDRESS } from "../App";
@@ -33,7 +33,8 @@ export default function Home() {
         const interval = setInterval(() => {
             const now = Math.floor(Date.now() / 1000);
             const end = Number(endTime);
-            setTimeLeft(end - now > 0 ? end - now : 0);
+            const diff = end - now;
+            setTimeLeft(diff > 0 ? diff : 0);
         }, 1000);
         return () => clearInterval(interval);
     }, [endTime]);
@@ -54,7 +55,8 @@ export default function Home() {
     const handleBuy = () => {
         if (!ticketQty || ticketQty <= 0) return;
         const totalCost = parseEther((Number(ticketQty) * 10).toString());
-        const refAddr = referrer && referrer.startsWith("0x") && referrer.length === 42 ? referrer : "0x0000000000000000000000000000000000000000";
+
+        const refAddr = referrer && isAddress(referrer) ? referrer : "0x0000000000000000000000000000000000000000";
 
         if (!allowance || allowance < totalCost) {
             writeContract({ address: TOKEN_ADDRESS, abi: MyTokenABI.abi, functionName: "approve", args: [LOTTERY_ADDRESS, parseEther("100000")] });
@@ -91,8 +93,13 @@ export default function Home() {
                 <div className="card">
                     <h3>Mua Vé (10 HST/vé)</h3>
                     <div className="qty-control">
-                        <button className="qty-btn" onClick={() => setTicketQty(q => Math.max(1, q - 1))}>-</button>
-                        <input type="number" className="qty-input" value={ticketQty} onChange={e => setTicketQty(e.target.value)} />
+                        <button className="qty-btn" onClick={() => setTicketQty(q => Math.max(1, Number(q) - 1))}>-</button>
+                        <input
+                            type="number"
+                            className="qty-input"
+                            value={ticketQty}
+                            onChange={e => setTicketQty(Math.max(1, parseInt(e.target.value) || 1))}
+                        />
                         <button className="qty-btn" onClick={() => setTicketQty(q => Number(q) + 1)}>+</button>
                     </div>
 

@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: MIT
 pragma solidity ^0.8.0;
 
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
@@ -15,16 +16,12 @@ contract Lottery is Ownable {
     uint256 public uniquePlayersCount;
     mapping(uint256 => mapping(address => bool)) public hasPlayedInRound;
 
-    // CONFIG JACKPOT
-    // 100% = 10000
     uint256 public constant BASE_JACKPOT_CHANCE = 10;
-    // Thêm 100 HST trong pool jackpot => + 0.01% xác suất
     uint256 public constant CHANCE_DIVISOR = 100 * 10**18; 
     uint256 public constant CALLER_REWARD_PERCENT = 2; // 2% cho người quay số
     
-    // ✅ GIỚI HẠN ĐỂ GIẢM ĐỘNG LỰC TẤN CÔNG
     uint256 public constant MAX_JACKPOT = 10000 * 10**18; // Max 10,000 HST jackpot
-    uint256 public constant MIN_PLAYERS_FOR_JACKPOT = 3;   // Cần ít nhất 3 người
+    uint256 public constant MIN_PLAYERS_FOR_JACKPOT = 3;
 
     struct WinnerHistory {
         uint256 round;
@@ -93,49 +90,41 @@ contract Lottery is Ownable {
             return;
         }
 
-        // ✅ IMPROVED RANDOMNESS: Sử dụng nhiều nguồn entropy
-        // Lưu ý: Không an toàn tuyệt đối, phù hợp cho lottery giá trị nhỏ-trung bình
         bytes32 entropy = keccak256(abi.encodePacked(
-            blockhash(block.number - 1),  // Block hash gần nhất
-            block.prevrandao,              // Beacon chain randomness  
-            block.timestamp,               // Timestamp
-            players.length,                // Số vé
-            uniquePlayersCount,            // Số người chơi unique
-            msg.sender,                    // Người gọi pickWinner
-            tx.gasprice,                   // Gas price
-            gasleft(),                     // Gas còn lại (thay đổi mỗi lần)
-            address(this).balance          // ETH balance của contract
+            blockhash(block.number - 1),
+            block.prevrandao,
+            block.timestamp,
+            players.length,
+            uniquePlayersCount,
+            msg.sender
         ));
         
         uint256 randomIndex = uint256(entropy) % players.length;
         address winner = players[randomIndex];
 
         uint256 currentBalance = token.balanceOf(address(this));
-        uint256 adminFee = currentBalance / 1000; // Admin ăn 0,1% mỗi vòng
+        uint256 adminFee = currentBalance / 1000;
         uint256 prize = 0;
         uint256 callerReward = 0;
         bool jackpotHit = false;
 
-        // Quay jackpot - CHỈ KHI đủ điều kiện
         if (uniquePlayersCount >= MIN_PLAYERS_FOR_JACKPOT) {
-             // Đóng góp vào jackpot pool 10%
              uint256 toJackpot = (currentBalance * 10) / 100;
-             jackpotPool += toJackpot;
-             
-             // ✅ GIỚI HẠN JACKPOT để giảm động lực tấn công
-             if (jackpotPool > MAX_JACKPOT) {
+             if (jackpotPool + toJackpot > MAX_JACKPOT) {
+                 uint256 actualAdd = MAX_JACKPOT - jackpotPool; 
                  jackpotPool = MAX_JACKPOT;
+                 toJackpot = actualAdd; 
+             } else {
+                 jackpotPool += toJackpot;
              }
 
              uint256 chance = getCurrentJackpotChance();
              
-             // Sử dụng entropy khác cho jackpot
              bytes32 jackpotEntropy = keccak256(abi.encodePacked(
                  entropy,
                  winner,
                  jackpotPool,
-                 block.number,
-                 block.difficulty
+                 block.number
              ));
              
              uint256 jackpotRoll = uint256(jackpotEntropy) % 10000;
