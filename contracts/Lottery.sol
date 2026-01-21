@@ -122,16 +122,20 @@ contract Lottery is Ownable {
         uint256 adminFee = roundRevenue / 1000; // 0.1% doanh thu
         uint256 callerReward = 0;
         uint256 prize = 0; // Giải cho người thắng
-        uint256 toJackpot = (roundRevenue * 10) / 100; // 10% vòng trích vào quỹ JP
+        uint256 toJackpot = 0;
         bool jackpotHit = false;
 
-        // Check Max Jackpot Cap
-        if (jackpotPool + toJackpot > MAX_JACKPOT) {
-            uint256 actualAdd = MAX_JACKPOT - jackpotPool; 
-            jackpotPool = MAX_JACKPOT;
-            toJackpot = actualAdd; // Actual added amount
-        } else {
-            jackpotPool += toJackpot;
+        if (uniquePlayersCount > 1) {
+            toJackpot = (roundRevenue * 10) / 100; // 10% vòng trích vào quỹ JP
+            
+            // Check Max Jackpot Cap
+            if (jackpotPool + toJackpot > MAX_JACKPOT) {
+                uint256 actualAdd = MAX_JACKPOT - jackpotPool; 
+                jackpotPool = MAX_JACKPOT;
+                toJackpot = actualAdd;
+            } else {
+                jackpotPool += toJackpot;
+            }
         }
 
         prize = roundRevenue - adminFee - toJackpot;
@@ -152,8 +156,13 @@ contract Lottery is Ownable {
         prize = prize - callerReward;
         
         token.safeTransfer(owner(), adminFee);
-        token.safeTransfer(msg.sender, callerReward);
-        token.safeTransfer(winner, prize);
+        
+        if (winner == msg.sender) {
+            token.safeTransfer(winner, prize + callerReward);
+        } else {
+            token.safeTransfer(msg.sender, callerReward);
+            token.safeTransfer(winner, prize);
+        }
 
         history.push(WinnerHistory(lotteryId, winner, prize, jackpotHit, block.timestamp));
         emit WinnerPicked(winner, prize, jackpotHit);
