@@ -134,6 +134,18 @@ export default function Exchange() {
                 address: EXCHANGER_ADDRESS, abi: ExchangerABI.abi, functionName: "buyHST", value: parseEther(amount)
             });
         } else {
+            // Validate HST balance for SELL
+            const currentHSTBalance = userHST ? Number(formatEther(userHST)) : 0;
+            const sellAmount = Number(amount);
+
+            if (sellAmount > currentHSTBalance) {
+                setExchangePopup({
+                    success: false,
+                    message: `Số dư HST không đủ! Bạn đang có ${currentHSTBalance.toLocaleString()} HST, không thể rút ${sellAmount.toLocaleString()} HST.`
+                });
+                return;
+            }
+
             const weiAmount = parseEther(amount);
             if (!allowance || allowance < weiAmount) {
                 writeContract({ address: TOKEN_ADDRESS, abi: MyTokenABI.abi, functionName: "approve", args: [EXCHANGER_ADDRESS, parseEther("100000000")] });
@@ -214,7 +226,16 @@ export default function Exchange() {
             </div>
             <Modal show={exchangePopup} onClose={() => setExchangePopup(null)}>
                 <div style={{ textAlign: 'center' }}>
-                    {exchangePopup?.type === "BUY" ? (
+                    {exchangePopup?.success === false ? (
+                        <>
+                            <div style={{ fontSize: '3rem', marginBottom: '10px' }}>❌</div>
+                            <h2 style={{ color: '#ef4444', marginBottom: '15px' }}>Lỗi!</h2>
+                            <p style={{ fontSize: '1rem', color: '#e2e8f0' }}>{exchangePopup?.message}</p>
+                            <button onClick={() => setExchangePopup(null)} className="btn-primary" style={{ marginTop: '20px', width: '50%' }}>
+                                OK
+                            </button>
+                        </>
+                    ) : exchangePopup?.type === "BUY" ? (
                         <>
                             <div style={{ fontSize: '3rem', marginBottom: '10px' }}>💎</div>
                             <h2 style={{ color: '#22c55e', marginBottom: '15px' }}>Nạp ETH thành công!</h2>
@@ -229,6 +250,7 @@ export default function Exchange() {
                                     <span style={{ color: '#22c55e', fontWeight: 'bold' }}>{Number(exchangePopup?.finalHST).toLocaleString()} HST</span>
                                 </div>
                             </div>
+                            <button onClick={() => setExchangePopup(null)} className="btn-primary" style={{ marginTop: '20px', width: '50%' }}>OK</button>
                         </>
                     ) : (
                         <>
@@ -252,9 +274,9 @@ export default function Exchange() {
                                     <span style={{ color: '#22c55e', fontWeight: 'bold' }}>{Number(exchangePopup?.netReceived).toFixed(6)} ETH</span>
                                 </div>
                             </div>
+                            <button onClick={() => setExchangePopup(null)} className="btn-primary" style={{ marginTop: '20px', width: '50%' }}>OK</button>
                         </>
                     )}
-                    <button onClick={() => setExchangePopup(null)} className="btn-primary" style={{ marginTop: '20px', width: '50%' }}>OK</button>
                 </div>
             </Modal>
         </div>
