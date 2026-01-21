@@ -198,6 +198,34 @@ export default function Admin() {
         if (!withdrawAmt || isNaN(withdrawAmt) || Number(withdrawAmt) <= 0) {
             return alert("Vui lòng nhập số ETH hợp lệ!");
         }
+
+        // Kiểm tra số dư ETH trong Exchanger
+        const availableETH = exchangerETHBalance ? Number(formatEther(exchangerETHBalance.value)) : 0;
+        const withdrawAmount = Number(withdrawAmt);
+
+        if (withdrawAmount > availableETH) {
+            setAdminPopup({
+                success: false,
+                type: 'withdraw',
+                message: `Số tiền rút (${withdrawAmount} ETH) vượt quá vốn thanh khoản hiện có (${availableETH.toFixed(4)} ETH)`
+            });
+            return;
+        }
+
+        // Kiểm tra reserve requirement
+        const totalSupply = circulatingHST ? Number(formatEther(circulatingHST)) : 0;
+        const requiredReserve = totalSupply / 100000; // RATE = 100000
+        const balanceAfterWithdraw = availableETH - withdrawAmount;
+
+        if (balanceAfterWithdraw < requiredReserve) {
+            setAdminPopup({
+                success: false,
+                type: 'withdraw',
+                message: `Không thể rút! Phải giữ lại tối thiểu ${requiredReserve.toFixed(4)} ETH để bảo chứng cho ${totalSupply.toLocaleString()} HST đang lưu hành. Sau khi rút còn ${balanceAfterWithdraw.toFixed(4)} ETH.`
+            });
+            return;
+        }
+
         setPendingAction({ type: 'withdraw', value: withdrawAmt });
         writeContract({ address: EXCHANGER_ADDRESS, abi: ExchangerABI.abi, functionName: "withdrawETH", args: [parseEther(withdrawAmt)] });
     }
