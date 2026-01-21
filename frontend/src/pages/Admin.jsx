@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { useAccount, useReadContract, useWriteContract, useWaitForTransactionReceipt, useBalance } from "wagmi";
-import { parseEther, formatEther } from "ethers";
+import { parseEther, formatEther, Interface } from "ethers";
 import LotteryABI from "../artifacts/Lottery.json";
 import ExchangerABI from "../artifacts/TokenExchanger.json";
 import TokenABI from "../artifacts/HustToken.json";
@@ -8,10 +8,31 @@ import { LOTTERY_ADDRESS, EXCHANGER_ADDRESS, TOKEN_ADDRESS } from "../App";
 import { createPublicClient, http, parseAbiItem } from 'viem';
 import { hardhat } from 'viem/chains';
 
+const Modal = ({ show, onClose, children }) => {
+    if (!show) return null;
+    return (
+        <div style={{
+            position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
+            backgroundColor: 'rgba(0, 0, 0, 0.7)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000
+        }}>
+            <div style={{
+                background: '#1e293b', padding: '30px', borderRadius: '15px', maxWidth: '500px', width: '90%',
+                position: 'relative', border: '2px solid #f59e0b', boxShadow: '0 0 20px rgba(245, 158, 11, 0.3)'
+            }}>
+                <button onClick={onClose} style={{
+                    position: 'absolute', top: '10px', right: '15px', background: 'none', border: 'none',
+                    color: '#94a3b8', fontSize: '1.5rem', cursor: 'pointer'
+                }}>×</button>
+                {children}
+            </div>
+        </div>
+    );
+};
+
 export default function Admin() {
     const { address } = useAccount();
-    const { writeContract, data: hash } = useWriteContract();
-    const { isSuccess } = useWaitForTransactionReceipt({ hash });
+    const { writeContract, data: hash, error: writeError } = useWriteContract();
+    const { isSuccess, isError, error: txError, data: receipt } = useWaitForTransactionReceipt({ hash });
 
     const { data: owner } = useReadContract({ address: LOTTERY_ADDRESS, abi: LotteryABI.abi, functionName: "owner" });
 
@@ -40,6 +61,8 @@ export default function Admin() {
     const [depositAmt, setDepositAmt] = useState("");
     const [withdrawAmt, setWithdrawAmt] = useState("");
     const [history, setHistory] = useState([]);
+    const [adminPopup, setAdminPopup] = useState(null);
+    const [pendingAction, setPendingAction] = useState(null);
 
     const fetchHistory = async () => {
         if (!address) return;
@@ -103,10 +126,66 @@ export default function Admin() {
         fetchHistory();
     }, [address, isSuccess]);
 
+    useEffect(() => {
+        if (isSuccess && receipt && pendingAction) {
+            const iface = pendingAction.type === 'duration'
+                ? new Interface(LotteryABI.abi)
+                : new Interface(ExchangerABI.abi);
+
+            let eventFound = false;
+            for (const log of receipt.logs) {
+                const targetAddress = pendingAction.type === 'duration' ? LOTTERY_ADDRESS : EXCHANGER_ADDRESS;
+                if (log.address.toLowerCase() === targetAddress.toLowerCase()) {
+                    try {
+                        const parsed = iface.parseLog({ topics: [...log.topics], data: log.data });
+                        if (parsed) {
+                            if (parsed.name === 'DurationUpdated') {
+                                setAdminPopup({
+                                    success: true,
+                                    type: 'duration',
+                                    message: `Đã cập nhật thời gian vòng chơi thành ${parsed.args.newDuration.toString()} giây`
+                                });
+                                setNewDuration("");
+                                eventFound = true;
+                            } else if (parsed.name === 'LiquidityAdded') {
+                                setAdminPopup({
+                                    success: true,
+                                    type: 'deposit',
+                                    message: `Đã nạp thành công ${formatEther(parsed.args.ethAmount)} ETH vào Exchanger`
+                                });
+                                setDepositAmt("");
+                                eventFound = true;
+                            } else if (parsed.name === 'FeesWithdrawn') {
+                                setAdminPopup({
+                                    success: true,
+                                    type: 'withdraw',
+                                    message: `Đã rút thành công ${formatEther(parsed.args.ethAmount)} ETH từ Exchanger`
+                                });
+                                setWithdrawAmt("");
+                                eventFound = true;
+                            }
+                            if (eventFound) break;
+                        }
+                    } catch (e) { }
+                }
+            }
+            setPendingAction(null);
+        } else if (isError && pendingAction) {
+            const errorMsg = txError?.message || writeError?.message || 'Giao dịch thất bại';
+            setAdminPopup({
+                success: false,
+                type: pendingAction.type,
+                message: `Lỗi: ${errorMsg.substring(0, 100)}...`
+            });
+            setPendingAction(null);
+        }
+    }, [isSuccess, isError, receipt, pendingAction]);
+
     const handleSetDuration = () => {
         if (!newDuration || isNaN(newDuration) || Number(newDuration) < 60) {
             return alert("Vui lòng nhập thời gian tối thiểu 60 giây!");
         }
+        setPendingAction({ type: 'duration', value: newDuration });
         writeContract({ address: LOTTERY_ADDRESS, abi: LotteryABI.abi, functionName: "setLotteryDuration", args: [BigInt(newDuration)] });
     }
 
@@ -114,6 +193,7 @@ export default function Admin() {
         if (!depositAmt || isNaN(depositAmt) || Number(depositAmt) <= 0) {
             return alert("Vui lòng nhập số ETH hợp lệ!");
         }
+        setPendingAction({ type: 'deposit', value: depositAmt });
         writeContract({ address: EXCHANGER_ADDRESS, abi: ExchangerABI.abi, functionName: "depositLiquidity", value: parseEther(depositAmt) });
     }
 
@@ -121,6 +201,35 @@ export default function Admin() {
         if (!withdrawAmt || isNaN(withdrawAmt) || Number(withdrawAmt) <= 0) {
             return alert("Vui lòng nhập số ETH hợp lệ!");
         }
+
+        // Kiểm tra số dư ETH trong Exchanger
+        const availableETH = exchangerETHBalance ? Number(formatEther(exchangerETHBalance.value)) : 0;
+        const withdrawAmount = Number(withdrawAmt);
+
+        if (withdrawAmount > availableETH) {
+            setAdminPopup({
+                success: false,
+                type: 'withdraw',
+                message: `Số tiền rút (${withdrawAmount} ETH) vượt quá vốn thanh khoản hiện có (${availableETH.toFixed(4)} ETH)`
+            });
+            return;
+        }
+
+        // Kiểm tra reserve requirement
+        const totalSupply = circulatingHST ? Number(formatEther(circulatingHST)) : 0;
+        const requiredReserve = totalSupply / 100000; // RATE = 100000
+        const balanceAfterWithdraw = availableETH - withdrawAmount;
+
+        if (balanceAfterWithdraw < requiredReserve) {
+            setAdminPopup({
+                success: false,
+                type: 'withdraw',
+                message: `Không thể rút! Phải giữ lại tối thiểu ${requiredReserve.toFixed(4)} ETH để bảo chứng cho ${totalSupply.toLocaleString()} HST đang lưu hành. Sau khi rút còn ${balanceAfterWithdraw.toFixed(4)} ETH.`
+            });
+            return;
+        }
+
+        setPendingAction({ type: 'withdraw', value: withdrawAmt });
         writeContract({ address: EXCHANGER_ADDRESS, abi: ExchangerABI.abi, functionName: "withdrawETH", args: [parseEther(withdrawAmt)] });
     }
 
@@ -230,6 +339,27 @@ export default function Admin() {
                     </table>
                 </div>
             </div>
+
+            <Modal show={adminPopup} onClose={() => setAdminPopup(null)}>
+                <div style={{ textAlign: 'center' }}>
+                    {adminPopup?.success ? (
+                        <>
+                            <div style={{ fontSize: '3rem', marginBottom: '10px' }}>✅</div>
+                            <h2 style={{ color: '#22c55e', marginBottom: '15px' }}>Thành công!</h2>
+                            <p style={{ fontSize: '1.1rem', color: '#e2e8f0' }}>{adminPopup?.message}</p>
+                        </>
+                    ) : (
+                        <>
+                            <div style={{ fontSize: '3rem', marginBottom: '10px' }}>❌</div>
+                            <h2 style={{ color: '#ef4444', marginBottom: '15px' }}>Thất bại!</h2>
+                            <p style={{ fontSize: '0.95rem', color: '#e2e8f0', wordBreak: 'break-word' }}>{adminPopup?.message}</p>
+                        </>
+                    )}
+                    <button onClick={() => setAdminPopup(null)} className="btn-primary" style={{ marginTop: '20px', width: '50%' }}>
+                        OK
+                    </button>
+                </div>
+            </Modal>
         </div>
     );
 }
