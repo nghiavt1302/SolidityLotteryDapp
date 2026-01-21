@@ -114,7 +114,7 @@ export default function Exchange() {
         const formattedHistory = [
             ...buyLogs.map(l => ({ type: 'NẠP', amountHST: formatEther(l.args.tokenAmount), amountETH: formatEther(l.args.ethAmount), hash: l.transactionHash })),
             ...sellLogs.map(l => ({ type: 'RÚT', amountHST: formatEther(l.args.tokenAmount), amountETH: formatEther(l.args.ethAmount), hash: l.transactionHash }))
-        ].sort((a, b) => b.blockNumber - a.blockNumber); // Cần có logic sort block chuẩn hơn trong thực tế
+        ].sort((a, b) => b.blockNumber - a.blockNumber);
 
         setHistory(formattedHistory);
     };
@@ -145,8 +145,6 @@ export default function Exchange() {
         ? (amount ? Number(amount) * RATE : 0)
         : (amount ? (Number(amount) / RATE) * 0.967 : 0);
 
-    // ... (Phần logic trên giữ nguyên)
-
     return (
         <div className="exchange-container">
             <div className="card exchange-card">
@@ -164,11 +162,10 @@ export default function Exchange() {
                         {tab === "BUY" ? "Nhập số ETH:" : "Nhập số HST:"}
                     </label>
 
-                    {/* [GIAO DIỆN MỚI] Ô nhập to đẹp */}
                     <div className="qty-control" style={{ marginTop: '10px' }}>
                         <input
                             type="number"
-                            className="fancy-input" // Class mới trong CSS
+                            className="fancy-input"
                             value={amount}
                             onChange={e => setAmount(e.target.value)}
                             placeholder="0.0"
@@ -183,7 +180,7 @@ export default function Exchange() {
                     <div className="result-preview">
                         <div style={{ color: '#94a3b8', fontSize: '0.9rem' }}>Bạn sẽ nhận về:</div>
                         <div style={{ fontSize: '1.8rem', fontWeight: 'bold', color: tab === "BUY" ? '#22c55e' : '#38bdf8' }}>
-                            {receivedVal.toLocaleString('en-US', { minimumFractionDigits: 6, maximumFractionDigits: 6 })} {tab === "BUY" ? "HST" : "ETH"}
+                            {receivedVal.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 6 })} {tab === "BUY" ? "HST" : "ETH"}
                         </div>
                         {tab === "SELL" && <div className="fee-note">(Đã trừ phí rút 3.3%)</div>}
                     </div>
