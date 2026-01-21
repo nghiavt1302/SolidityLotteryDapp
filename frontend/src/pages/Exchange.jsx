@@ -183,7 +183,7 @@ export default function Exchange() {
                     <div className="result-preview">
                         <div style={{ color: '#94a3b8', fontSize: '0.9rem' }}>Bạn sẽ nhận về:</div>
                         <div style={{ fontSize: '1.8rem', fontWeight: 'bold', color: tab === "BUY" ? '#22c55e' : '#38bdf8' }}>
-                            {receivedVal.toLocaleString()} {tab === "BUY" ? "HST" : "ETH"}
+                            {receivedVal.toLocaleString('en-US', { minimumFractionDigits: 6, maximumFractionDigits: 6 })} {tab === "BUY" ? "HST" : "ETH"}
                         </div>
                         {tab === "SELL" && <div className="fee-note">(Đã trừ phí rút 3.3%)</div>}
                     </div>
