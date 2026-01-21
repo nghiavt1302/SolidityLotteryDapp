@@ -45,6 +45,7 @@ export default function Home() {
     const { data: history, refetch: refetchHistory } = useReadContract({ ...readConfig, functionName: "getHistory" });
     const { data: uniqueCount, refetch: refetchUniqueCount } = useReadContract({ ...readConfig, functionName: "uniquePlayersCount" });
     const { data: jackpotChance } = useReadContract({ ...readConfig, functionName: "getCurrentJackpotChance" });
+    const { data: lotteryId } = useReadContract({ ...readConfig, functionName: "lotteryId" });
 
     // Listen for TicketPurchased events
     useWatchContractEvent({
@@ -224,7 +225,7 @@ export default function Home() {
                             </div>
                         </div>
                     </div>
-                    <div className="chance-badge">🔥 Tỷ lệ Nổ Hũ: {jackpotChance ? (Number(jackpotChance) / 100).toFixed(2) : "0.10"}%</div>
+                    <div className="chance-badge">🎯 Vòng #{lotteryId ? Number(lotteryId) : "..."} | 🔥 Tỷ lệ Nổ Hũ: {jackpotChance ? (Number(jackpotChance) / 100).toFixed(2) : "0.10"}%</div>
                 </div>
 
                 <div className="card">

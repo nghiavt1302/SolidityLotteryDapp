@@ -3,7 +3,8 @@ import { useAccount, useReadContract, useWriteContract, useWaitForTransactionRec
 import { formatEther, parseEther } from "ethers";
 import ExchangerABI from "../artifacts/TokenExchanger.json";
 import MyTokenABI from "../artifacts/HustToken.json";
-import { EXCHANGER_ADDRESS, TOKEN_ADDRESS } from "../App";
+import LotteryABI from "../artifacts/Lottery.json";
+import { EXCHANGER_ADDRESS, TOKEN_ADDRESS, LOTTERY_ADDRESS } from "../App";
 import { createPublicClient, http, parseAbiItem } from 'viem';
 import { hardhat } from 'viem/chains';
 import { Interface } from "ethers";
@@ -38,6 +39,7 @@ export default function Exchange() {
     const [history, setHistory] = useState([]);
     const [exchangePopup, setExchangePopup] = useState(null);
     const [preTxBalanceHST, setPreTxBalanceHST] = useState("0");
+    const [hstHistory, setHstHistory] = useState([]);
 
     const { writeContract, data: hash } = useWriteContract();
     const { isSuccess, isLoading, data: receipt } = useWaitForTransactionReceipt({ hash });
@@ -121,7 +123,58 @@ export default function Exchange() {
         setHistory(formattedHistory);
     };
 
-    useEffect(() => { fetchHistory(); if (isSuccess) refetchAllowance(); }, [address, isSuccess]);
+    const fetchHSTHistory = async () => {
+        if (!address) return;
+        const client = createPublicClient({ chain: hardhat, transport: http() });
+
+        const [mintLogs, burnLogs, ticketLogs, adminLogs, callerLogs, prizeLogs, referralLogs] = await Promise.all([
+            client.getLogs({ address: EXCHANGER_ADDRESS, event: parseAbiItem('event TokensPurchased(address indexed buyer, uint256 ethAmount, uint256 tokenAmount)'), args: { buyer: address }, fromBlock: 'earliest' }),
+            client.getLogs({ address: EXCHANGER_ADDRESS, event: parseAbiItem('event TokensSold(address indexed seller, uint256 tokenAmount, uint256 ethAmount, uint256 fee)'), args: { seller: address }, fromBlock: 'earliest' }),
+            client.getLogs({ address: LOTTERY_ADDRESS, event: parseAbiItem('event TicketPurchased(address indexed player, uint256 amount)'), args: { player: address }, fromBlock: 'earliest' }),
+            client.getLogs({ address: LOTTERY_ADDRESS, event: parseAbiItem('event AdminFeeTransferred(address indexed admin, uint256 amount, uint256 roundId)'), args: { admin: address }, fromBlock: 'earliest' }),
+            client.getLogs({ address: LOTTERY_ADDRESS, event: parseAbiItem('event CallerRewardTransferred(address indexed caller, uint256 amount, uint256 roundId)'), args: { caller: address }, fromBlock: 'earliest' }),
+            client.getLogs({ address: LOTTERY_ADDRESS, event: parseAbiItem('event PrizeTransferred(address indexed winner, uint256 amount, uint256 roundId, bool isJackpotHit)'), args: { winner: address }, fromBlock: 'earliest' }),
+            client.getLogs({ address: LOTTERY_ADDRESS, event: parseAbiItem('event ReferralBonusTransferred(address indexed referrer, uint256 amount, address indexed buyer)'), args: { referrer: address }, fromBlock: 'earliest' })
+        ]);
+
+        const allEvents = [];
+        for (const log of mintLogs) {
+            const block = await client.getBlock({ blockNumber: log.blockNumber });
+            allEvents.push({ type: 'Mua HST', amount: `+${formatEther(log.args.tokenAmount)}`, from: 'Mint', to: 'Bạn', timestamp: new Date(Number(block.timestamp) * 1000).toLocaleString(), round: null, isIncoming: true, blockNumber: log.blockNumber, hash: log.transactionHash });
+        }
+        for (const log of burnLogs) {
+            const block = await client.getBlock({ blockNumber: log.blockNumber });
+            allEvents.push({ type: 'Bán HST', amount: `-${formatEther(log.args.tokenAmount)}`, from: 'Bạn', to: 'Burn', timestamp: new Date(Number(block.timestamp) * 1000).toLocaleString(), round: null, isIncoming: false, blockNumber: log.blockNumber, hash: log.transactionHash });
+        }
+        for (const log of ticketLogs) {
+            const block = await client.getBlock({ blockNumber: log.blockNumber });
+            const ticketCost = BigInt(log.args.amount) * BigInt(10) * BigInt(10 ** 18);
+            allEvents.push({ type: 'Mua vé', amount: `-${formatEther(ticketCost)}`, from: 'Bạn', to: 'Lottery', timestamp: new Date(Number(block.timestamp) * 1000).toLocaleString(), round: null, isIncoming: false, blockNumber: log.blockNumber, hash: log.transactionHash });
+        }
+        for (const log of adminLogs) {
+            const block = await client.getBlock({ blockNumber: log.blockNumber });
+            allEvents.push({ type: 'Phí admin', amount: `+${formatEther(log.args.amount)}`, from: 'Lottery', to: 'Bạn', timestamp: new Date(Number(block.timestamp) * 1000).toLocaleString(), round: `#${log.args.roundId}`, isIncoming: true, blockNumber: log.blockNumber, hash: log.transactionHash });
+        }
+        for (const log of callerLogs) {
+            const block = await client.getBlock({ blockNumber: log.blockNumber });
+            allEvents.push({ type: 'Thưởng pickWinner', amount: `+${formatEther(log.args.amount)}`, from: 'Lottery', to: 'Bạn', timestamp: new Date(Number(block.timestamp) * 1000).toLocaleString(), round: `#${log.args.roundId}`, isIncoming: true, blockNumber: log.blockNumber, hash: log.transactionHash });
+        }
+        for (const log of prizeLogs) {
+            const block = await client.getBlock({ blockNumber: log.blockNumber });
+            allEvents.push({ type: log.args.isJackpotHit ? 'Thắng giải + Jackpot' : 'Thắng giải', amount: `+${formatEther(log.args.amount)}`, from: 'Lottery', to: 'Bạn', timestamp: new Date(Number(block.timestamp) * 1000).toLocaleString(), round: `#${log.args.roundId}`, isIncoming: true, blockNumber: log.blockNumber, hash: log.transactionHash });
+        }
+        for (const log of referralLogs) {
+            const block = await client.getBlock({ blockNumber: log.blockNumber });
+            allEvents.push({ type: 'Hoa hồng', amount: `+${formatEther(log.args.amount)}`, from: 'Lottery', to: 'Bạn', timestamp: new Date(Number(block.timestamp) * 1000).toLocaleString(), round: null, isIncoming: true, blockNumber: log.blockNumber, hash: log.transactionHash });
+        }
+        setHstHistory(allEvents.sort((a, b) => Number(b.blockNumber) - Number(a.blockNumber)));
+    };
+
+    useEffect(() => {
+        fetchHistory();
+        fetchHSTHistory();
+        if (isSuccess) refetchAllowance();
+    }, [address, isSuccess]);
 
     const handleExecute = () => {
         if (!amount) return;
@@ -224,6 +277,30 @@ export default function Exchange() {
                     </table>
                 </div>
             </div>
+
+            <div className="card history-card" style={{ marginTop: '20px' }}>
+                <h3>💰 Lịch sử biến động HST</h3>
+                <div className="scroll-box">
+                    <table>
+                        <thead><tr><th>Loại</th><th>Số tiền</th><th>Từ</th><th>Đến</th><th>Vòng</th><th>Thời gian</th><th>Tx</th></tr></thead>
+                        <tbody>
+                            {hstHistory.map((h, i) => (
+                                <tr key={i}>
+                                    <td style={{ fontWeight: 'bold', fontSize: '0.85rem' }}>{h.type}</td>
+                                    <td style={{ color: h.isIncoming ? '#22c55e' : '#ef4444', fontWeight: 'bold' }}>{h.amount}</td>
+                                    <td style={{ fontSize: '0.8rem' }}>{h.from}</td>
+                                    <td style={{ fontSize: '0.8rem' }}>{h.to}</td>
+                                    <td style={{ fontSize: '0.8rem', color: '#f59e0b' }}>{h.round || '-'}</td>
+                                    <td style={{ fontSize: '0.75rem', color: '#94a3b8' }}>{h.timestamp}</td>
+                                    <td><a href={`https://sepolia.etherscan.io/tx/${h.hash}`} target="_blank" rel="noreferrer" style={{ color: '#38bdf8', textDecoration: 'none', fontSize: '0.85rem' }}>Xem</a></td>
+                                </tr>
+                            ))}
+                            {hstHistory.length === 0 && <tr><td colSpan="7" align="center" style={{ color: '#64748b', padding: '20px' }}>Chưa có giao dịch nào</td></tr>}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
             <Modal show={exchangePopup} onClose={() => setExchangePopup(null)}>
                 <div style={{ textAlign: 'center' }}>
                     {exchangePopup?.success === false ? (

@@ -47,6 +47,10 @@ contract Lottery is Ownable {
     );
     event RoundEndedEmpty(uint256 round);
     event DurationUpdated(uint256 newDuration);
+    event AdminFeeTransferred(address indexed admin, uint256 amount, uint256 roundId);
+    event CallerRewardTransferred(address indexed caller, uint256 amount, uint256 roundId);
+    event PrizeTransferred(address indexed winner, uint256 amount, uint256 roundId, bool isJackpotHit);
+    event ReferralBonusTransferred(address indexed referrer, uint256 amount, address indexed buyer);
 
     constructor(address _tokenAddress) Ownable(msg.sender) {
         token = IERC20(_tokenAddress);
@@ -83,7 +87,9 @@ contract Lottery is Ownable {
         }
 
         if (_referrer != address(0) && _referrer != msg.sender) {
-            token.safeTransfer(_referrer, (totalCost * 1) / 100);
+            uint256 bonus = (totalCost * 1) / 100;
+            token.safeTransfer(_referrer, bonus);
+            emit ReferralBonusTransferred(_referrer, bonus, msg.sender);
         }
 
         emit TicketPurchased(msg.sender, _quantity);
@@ -156,12 +162,17 @@ contract Lottery is Ownable {
         prize = prize - callerReward;
         
         token.safeTransfer(owner(), adminFee);
+        emit AdminFeeTransferred(owner(), adminFee, lotteryId);
         
         if (winner == msg.sender) {
             token.safeTransfer(winner, prize + callerReward);
+            emit PrizeTransferred(winner, prize, lotteryId, jackpotHit);
+            emit CallerRewardTransferred(msg.sender, callerReward, lotteryId);
         } else {
             token.safeTransfer(msg.sender, callerReward);
+            emit CallerRewardTransferred(msg.sender, callerReward, lotteryId);
             token.safeTransfer(winner, prize);
+            emit PrizeTransferred(winner, prize, lotteryId, jackpotHit);
         }
 
         history.push(WinnerHistory(lotteryId, winner, prize, jackpotHit, block.timestamp));
