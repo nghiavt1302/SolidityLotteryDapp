@@ -34,7 +34,7 @@ contract Lottery is Ownable {
     }
     WinnerHistory[] public history;
 
-    event TicketPurchased(address indexed player, uint256 amount);
+    event TicketPurchased(address indexed player, uint256 amount, uint256 roundId);
     event WinnerPicked(address indexed winner, uint256 amount, bool isJackpotHit);
     event RoundResult(
         uint256 roundId,
@@ -50,7 +50,7 @@ contract Lottery is Ownable {
     event AdminFeeTransferred(address indexed admin, uint256 amount, uint256 roundId);
     event CallerRewardTransferred(address indexed caller, uint256 amount, uint256 roundId);
     event PrizeTransferred(address indexed winner, uint256 amount, uint256 roundId, bool isJackpotHit);
-    event ReferralBonusTransferred(address indexed referrer, uint256 amount, address indexed buyer);
+    event ReferralBonusTransferred(address indexed referrer, uint256 amount, address indexed buyer, uint256 roundId);
 
     constructor(address _tokenAddress) Ownable(msg.sender) {
         token = IERC20(_tokenAddress);
@@ -89,10 +89,10 @@ contract Lottery is Ownable {
         if (_referrer != address(0) && _referrer != msg.sender) {
             uint256 bonus = (totalCost * 1) / 100;
             token.safeTransfer(_referrer, bonus);
-            emit ReferralBonusTransferred(_referrer, bonus, msg.sender);
+            emit ReferralBonusTransferred(_referrer, bonus, msg.sender, lotteryId);
         }
 
-        emit TicketPurchased(msg.sender, _quantity);
+        emit TicketPurchased(msg.sender, _quantity, lotteryId);
     }
 
     function pickWinner() external {
