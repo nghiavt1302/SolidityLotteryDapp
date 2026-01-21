@@ -145,6 +145,7 @@ export default function Admin() {
                                     type: 'duration',
                                     message: `Đã cập nhật thời gian vòng chơi thành ${parsed.args.newDuration.toString()} giây`
                                 });
+                                setNewDuration("");
                                 eventFound = true;
                             } else if (parsed.name === 'LiquidityAdded') {
                                 setAdminPopup({
@@ -152,6 +153,7 @@ export default function Admin() {
                                     type: 'deposit',
                                     message: `Đã nạp thành công ${formatEther(parsed.args.ethAmount)} ETH vào Exchanger`
                                 });
+                                setDepositAmt("");
                                 eventFound = true;
                             } else if (parsed.name === 'FeesWithdrawn') {
                                 setAdminPopup({
@@ -159,6 +161,7 @@ export default function Admin() {
                                     type: 'withdraw',
                                     message: `Đã rút thành công ${formatEther(parsed.args.ethAmount)} ETH từ Exchanger`
                                 });
+                                setWithdrawAmt("");
                                 eventFound = true;
                             }
                             if (eventFound) break;

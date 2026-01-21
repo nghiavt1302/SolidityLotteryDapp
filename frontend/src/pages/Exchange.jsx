@@ -72,6 +72,7 @@ export default function Exchange() {
                                         initialHST: oldBal,
                                         finalHST: newBal
                                     });
+                                    setAmount("");
                                 } else if (parsed.name === "TokensSold" && parsed.args.seller.toLowerCase() === address.toLowerCase()) {
                                     setExchangePopup({
                                         type: "SELL",
@@ -80,6 +81,7 @@ export default function Exchange() {
                                         fee: formatEther(parsed.args.fee),
                                         netReceived: formatEther(parsed.args.ethAmount)
                                     });
+                                    setAmount("");
                                 }
                             }
                         } catch (e) { }

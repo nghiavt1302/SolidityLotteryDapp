@@ -135,6 +135,8 @@ export default function Home() {
                                 bought: boughtQty,
                                 total: currentOwned + Number(boughtQty)
                             });
+                            setTicketQty(1);
+                            setReferrer("");
                             break;
                         }
                     } catch (e) { }
