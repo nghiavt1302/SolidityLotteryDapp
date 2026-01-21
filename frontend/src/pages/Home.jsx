@@ -45,6 +45,7 @@ export default function Home() {
     const { data: history, refetch: refetchHistory } = useReadContract({ ...readConfig, functionName: "getHistory" });
     const { data: uniqueCount, refetch: refetchUniqueCount } = useReadContract({ ...readConfig, functionName: "uniquePlayersCount" });
     const { data: jackpotChance } = useReadContract({ ...readConfig, functionName: "getCurrentJackpotChance" });
+    const { data: lotteryId } = useReadContract({ ...readConfig, functionName: "lotteryId" });
 
     // Listen for TicketPurchased events
     useWatchContractEvent({
@@ -78,14 +79,21 @@ export default function Home() {
         return BigInt(0);
     }, [lotteryTokenBalance, jackpotPool]);
 
-    const [timeLeft, setTimeLeft] = useState(0);
+    const [timeLeft, setTimeLeft] = useState(null);
     useEffect(() => {
         if (!endTime) return;
-        const interval = setInterval(() => {
+
+        const calculateTimeLeft = () => {
             const now = Math.floor(Date.now() / 1000);
             const end = Number(endTime);
             const diff = end - now;
-            setTimeLeft(diff > 0 ? diff : 0);
+            return diff > 0 ? diff : 0;
+        };
+
+        setTimeLeft(calculateTimeLeft());
+
+        const interval = setInterval(() => {
+            setTimeLeft(calculateTimeLeft());
         }, 1000);
         return () => clearInterval(interval);
     }, [endTime]);
@@ -213,11 +221,11 @@ export default function Home() {
                         <div className="stat-box">
                             <div className="stat-label">Thời gian ⏳</div>
                             <div className="stat-value" style={{ color: timeLeft === 0 ? '#ef4444' : '#22c55e' }}>
-                                {timeLeft > 0 ? `${Math.floor(timeLeft / 60)}:${(timeLeft % 60).toString().padStart(2, '0')}` : "HẾT GIỜ"}
+                                {timeLeft === null ? "..." : timeLeft > 0 ? `${Math.floor(timeLeft / 60)}:${(timeLeft % 60).toString().padStart(2, '0')}` : "HẾT GIỜ"}
                             </div>
                         </div>
                     </div>
-                    <div className="chance-badge">🔥 Tỷ lệ Nổ Hũ: {jackpotChance ? (Number(jackpotChance) / 100).toFixed(2) : "0.10"}%</div>
+                    <div className="chance-badge">🎯 Vòng #{lotteryId ? Number(lotteryId) : "..."} | 🔥 Tỷ lệ Nổ Hũ: {jackpotChance ? (Number(jackpotChance) / 100).toFixed(2) : "0.10"}%</div>
                 </div>
 
                 <div className="card">

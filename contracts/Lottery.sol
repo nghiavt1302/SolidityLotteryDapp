@@ -34,7 +34,7 @@ contract Lottery is Ownable {
     }
     WinnerHistory[] public history;
 
-    event TicketPurchased(address indexed player, uint256 amount);
+    event TicketPurchased(address indexed player, uint256 amount, uint256 roundId);
     event WinnerPicked(address indexed winner, uint256 amount, bool isJackpotHit);
     event RoundResult(
         uint256 roundId,
@@ -47,6 +47,10 @@ contract Lottery is Ownable {
     );
     event RoundEndedEmpty(uint256 round);
     event DurationUpdated(uint256 newDuration);
+    event AdminFeeTransferred(address indexed admin, uint256 amount, uint256 roundId);
+    event CallerRewardTransferred(address indexed caller, uint256 amount, uint256 roundId);
+    event PrizeTransferred(address indexed winner, uint256 amount, uint256 roundId, bool isJackpotHit);
+    event ReferralBonusTransferred(address indexed referrer, uint256 amount, address indexed buyer, uint256 roundId);
 
     constructor(address _tokenAddress) Ownable(msg.sender) {
         token = IERC20(_tokenAddress);
@@ -83,10 +87,12 @@ contract Lottery is Ownable {
         }
 
         if (_referrer != address(0) && _referrer != msg.sender) {
-            token.safeTransfer(_referrer, (totalCost * 1) / 100);
+            uint256 bonus = (totalCost * 1) / 100;
+            token.safeTransfer(_referrer, bonus);
+            emit ReferralBonusTransferred(_referrer, bonus, msg.sender, lotteryId);
         }
 
-        emit TicketPurchased(msg.sender, _quantity);
+        emit TicketPurchased(msg.sender, _quantity, lotteryId);
     }
 
     function pickWinner() external {
@@ -122,16 +128,20 @@ contract Lottery is Ownable {
         uint256 adminFee = roundRevenue / 1000; // 0.1% doanh thu
         uint256 callerReward = 0;
         uint256 prize = 0; // Giải cho người thắng
-        uint256 toJackpot = (roundRevenue * 10) / 100; // 10% vòng trích vào quỹ JP
+        uint256 toJackpot = 0;
         bool jackpotHit = false;
 
-        // Check Max Jackpot Cap
-        if (jackpotPool + toJackpot > MAX_JACKPOT) {
-            uint256 actualAdd = MAX_JACKPOT - jackpotPool; 
-            jackpotPool = MAX_JACKPOT;
-            toJackpot = actualAdd; // Actual added amount
-        } else {
-            jackpotPool += toJackpot;
+        if (uniquePlayersCount > 1) {
+            toJackpot = (roundRevenue * 10) / 100; // 10% vòng trích vào quỹ JP
+            
+            // Check Max Jackpot Cap
+            if (jackpotPool + toJackpot > MAX_JACKPOT) {
+                uint256 actualAdd = MAX_JACKPOT - jackpotPool; 
+                jackpotPool = MAX_JACKPOT;
+                toJackpot = actualAdd;
+            } else {
+                jackpotPool += toJackpot;
+            }
         }
 
         prize = roundRevenue - adminFee - toJackpot;
@@ -152,8 +162,18 @@ contract Lottery is Ownable {
         prize = prize - callerReward;
         
         token.safeTransfer(owner(), adminFee);
-        token.safeTransfer(msg.sender, callerReward);
-        token.safeTransfer(winner, prize);
+        emit AdminFeeTransferred(owner(), adminFee, lotteryId);
+        
+        if (winner == msg.sender) {
+            token.safeTransfer(winner, prize + callerReward);
+            emit PrizeTransferred(winner, prize, lotteryId, jackpotHit);
+            emit CallerRewardTransferred(msg.sender, callerReward, lotteryId);
+        } else {
+            token.safeTransfer(msg.sender, callerReward);
+            emit CallerRewardTransferred(msg.sender, callerReward, lotteryId);
+            token.safeTransfer(winner, prize);
+            emit PrizeTransferred(winner, prize, lotteryId, jackpotHit);
+        }
 
         history.push(WinnerHistory(lotteryId, winner, prize, jackpotHit, block.timestamp));
         emit WinnerPicked(winner, prize, jackpotHit);
