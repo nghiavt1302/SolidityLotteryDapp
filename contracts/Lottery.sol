@@ -13,7 +13,7 @@ contract Lottery is Ownable {
     address[] public players;
     uint256 public jackpotPool;
     uint256 public endTime;
-    uint256 public lotteryDuration = 7 minutes; 
+    uint256 public lotteryDuration = 3 minutes; 
 
     uint256 public uniquePlayersCount;
     mapping(uint256 => mapping(address => bool)) public hasPlayedInRound;
@@ -97,6 +97,13 @@ contract Lottery is Ownable {
 
     function pickWinner() external {
         require(block.timestamp >= endTime, "Chua het gio");
+
+        if (players.length > 0) {
+            bool isOwner = msg.sender == owner();
+            bool isParticipant = hasPlayedInRound[lotteryId][msg.sender];
+            
+            require(isOwner || isParticipant, "Chi admin hoac nguoi choi moi duoc quay so");
+        }
 
         // Nếu không ai chơi vòng này
         if (players.length == 0) {
