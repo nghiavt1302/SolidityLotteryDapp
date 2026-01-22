@@ -38,6 +38,7 @@ export default function Home() {
     const [winnerPopup, setWinnerPopup] = useState(null);
     const [buySuccessPopup, setBuySuccessPopup] = useState(null);
     const [emptyRoundPopup, setEmptyRoundPopup] = useState(null);
+    const [unauthorizedPopup, setUnauthorizedPopup] = useState(false);
 
     const readConfig = { address: LOTTERY_ADDRESS, abi: LotteryABI.abi, query: { refetchInterval: 2000 } };
     const { data: jackpotPool, refetch: refetchJackpot } = useReadContract({ ...readConfig, functionName: "jackpotPool" });
@@ -47,6 +48,7 @@ export default function Home() {
     const { data: uniqueCount, refetch: refetchUniqueCount } = useReadContract({ ...readConfig, functionName: "uniquePlayersCount" });
     const { data: jackpotChance } = useReadContract({ ...readConfig, functionName: "getCurrentJackpotChance" });
     const { data: lotteryId } = useReadContract({ ...readConfig, functionName: "lotteryId" });
+    const { data: contractOwner } = useReadContract({ ...readConfig, functionName: "owner" });
 
     // Listen for TicketPurchased events
     useWatchContractEvent({
@@ -204,6 +206,21 @@ export default function Home() {
     };
 
     const handlePickWinner = () => {
+        // Check if there are players in the round
+        if (players && players.length > 0) {
+            // Check if user is admin
+            const isAdmin = contractOwner && address && contractOwner.toLowerCase() === address.toLowerCase();
+
+            // Check if user is a participant in this round
+            const isParticipant = players.some(p => p.toLowerCase() === address.toLowerCase());
+
+            // Only allow admin or participants to pick winner
+            if (!isAdmin && !isParticipant) {
+                setUnauthorizedPopup(true);
+                return;
+            }
+        }
+
         writeContract({ address: LOTTERY_ADDRESS, abi: LotteryABI.abi, functionName: "pickWinner" });
     };
 
@@ -381,6 +398,22 @@ export default function Home() {
                         Hệ thống sẽ tự động chuyển sang vòng tiếp theo.
                     </p>
                     <button onClick={() => setEmptyRoundPopup(null)} className="btn-primary" style={{ width: '50%' }}>
+                        OK
+                    </button>
+                </div>
+            </Modal>
+
+            <Modal show={unauthorizedPopup} onClose={() => setUnauthorizedPopup(false)}>
+                <div style={{ textAlign: 'center' }}>
+                    <div style={{ fontSize: '3rem', marginBottom: '10px' }}>🚫</div>
+                    <h2 style={{ color: '#ef4444', marginBottom: '15px' }}>Không có quyền truy cập</h2>
+                    <p style={{ fontSize: '1.1rem', marginBottom: '10px', color: '#94a3b8' }}>
+                        Chỉ những người đã mua vé trong vòng chơi này hoặc admin mới có thể quay số.
+                    </p>
+                    <p style={{ fontSize: '1rem', marginBottom: '20px', color: '#94a3b8' }}>
+                        Vui lòng mua vé để tham gia vòng chơi!
+                    </p>
+                    <button onClick={() => setUnauthorizedPopup(false)} className="btn-primary" style={{ width: '50%' }}>
                         OK
                     </button>
                 </div>

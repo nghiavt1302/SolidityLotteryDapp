@@ -98,6 +98,13 @@ contract Lottery is Ownable {
     function pickWinner() external {
         require(block.timestamp >= endTime, "Chua het gio");
 
+        if (players.length > 0) {
+            bool isOwner = msg.sender == owner();
+            bool isParticipant = hasPlayedInRound[lotteryId][msg.sender];
+            
+            require(isOwner || isParticipant, "Chi admin hoac nguoi choi moi duoc quay so");
+        }
+
         // Nếu không ai chơi vòng này
         if (players.length == 0) {
             history.push(WinnerHistory(lotteryId, address(0), 0, false, block.timestamp));
