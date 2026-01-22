@@ -15,6 +15,7 @@ import LotteryABI from "./artifacts/Lottery.json";
 export const TOKEN_ADDRESS = "0x148B5Cc3affA6e7A381977DabF757EF63290055f";
 export const EXCHANGER_ADDRESS = "0x53303c6512C04384dbCD4ec962F46d582Ee630e1";
 export const LOTTERY_ADDRESS = "0xE57a9959bED0051d2e3D720548091555Ab4012d7";
+export const START_BLOCK = 10090000n;
 
 function Navbar() {
   const { address, isConnected } = useAccount();

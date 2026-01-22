@@ -4,7 +4,7 @@ import { formatEther, parseEther } from "ethers";
 import ExchangerABI from "../artifacts/TokenExchanger.json";
 import MyTokenABI from "../artifacts/HustToken.json";
 import LotteryABI from "../artifacts/Lottery.json";
-import { EXCHANGER_ADDRESS, TOKEN_ADDRESS, LOTTERY_ADDRESS } from "../App";
+import { EXCHANGER_ADDRESS, TOKEN_ADDRESS, LOTTERY_ADDRESS, START_BLOCK } from "../App";
 import { createPublicClient, http, parseAbiItem } from 'viem';
 import { sepolia } from 'viem/chains';
 import { Interface } from "ethers";
@@ -108,14 +108,14 @@ export default function Exchange() {
             address: EXCHANGER_ADDRESS,
             event: parseAbiItem('event TokensPurchased(address indexed buyer, uint256 ethAmount, uint256 tokenAmount)'),
             args: { buyer: address },
-            fromBlock: 'earliest'
+            fromBlock: START_BLOCK
         });
 
         const sellLogs = await client.getLogs({
             address: EXCHANGER_ADDRESS,
             event: parseAbiItem('event TokensSold(address indexed seller, uint256 tokenAmount, uint256 ethAmount, uint256 fee)'),
             args: { seller: address },
-            fromBlock: 'earliest'
+            fromBlock: START_BLOCK
         });
 
         const formattedHistory = [
@@ -134,21 +134,21 @@ export default function Exchange() {
         });
 
         const [mintLogs, burnLogs, ticketLogs, adminLogs, callerLogs, prizeLogs, referralLogs] = await Promise.all([
-            client.getLogs({ address: EXCHANGER_ADDRESS, event: parseAbiItem('event TokensPurchased(address indexed buyer, uint256 ethAmount, uint256 tokenAmount)'), args: { buyer: address }, fromBlock: 'earliest' }),
-            client.getLogs({ address: EXCHANGER_ADDRESS, event: parseAbiItem('event TokensSold(address indexed seller, uint256 tokenAmount, uint256 ethAmount, uint256 fee)'), args: { seller: address }, fromBlock: 'earliest' }),
+            client.getLogs({ address: EXCHANGER_ADDRESS, event: parseAbiItem('event TokensPurchased(address indexed buyer, uint256 ethAmount, uint256 tokenAmount)'), args: { buyer: address }, fromBlock: START_BLOCK }),
+            client.getLogs({ address: EXCHANGER_ADDRESS, event: parseAbiItem('event TokensSold(address indexed seller, uint256 tokenAmount, uint256 ethAmount, uint256 fee)'), args: { seller: address }, fromBlock: START_BLOCK }),
             client.getLogs({
                 address: LOTTERY_ADDRESS,
                 event: parseAbiItem('event TicketPurchased(address indexed player, uint256 amount, uint256 roundId)'),
                 args: { player: address },
-                fromBlock: 'earliest'
-            }), client.getLogs({ address: LOTTERY_ADDRESS, event: parseAbiItem('event AdminFeeTransferred(address indexed admin, uint256 amount, uint256 roundId)'), args: { admin: address }, fromBlock: 'earliest' }),
-            client.getLogs({ address: LOTTERY_ADDRESS, event: parseAbiItem('event CallerRewardTransferred(address indexed caller, uint256 amount, uint256 roundId)'), args: { caller: address }, fromBlock: 'earliest' }),
-            client.getLogs({ address: LOTTERY_ADDRESS, event: parseAbiItem('event PrizeTransferred(address indexed winner, uint256 amount, uint256 roundId, bool isJackpotHit)'), args: { winner: address }, fromBlock: 'earliest' }),
+                fromBlock: START_BLOCK
+            }), client.getLogs({ address: LOTTERY_ADDRESS, event: parseAbiItem('event AdminFeeTransferred(address indexed admin, uint256 amount, uint256 roundId)'), args: { admin: address }, fromBlock: START_BLOCK }),
+            client.getLogs({ address: LOTTERY_ADDRESS, event: parseAbiItem('event CallerRewardTransferred(address indexed caller, uint256 amount, uint256 roundId)'), args: { caller: address }, fromBlock: START_BLOCK }),
+            client.getLogs({ address: LOTTERY_ADDRESS, event: parseAbiItem('event PrizeTransferred(address indexed winner, uint256 amount, uint256 roundId, bool isJackpotHit)'), args: { winner: address }, fromBlock: START_BLOCK }),
             client.getLogs({
                 address: LOTTERY_ADDRESS,
                 event: parseAbiItem('event ReferralBonusTransferred(address indexed referrer, uint256 amount, address indexed buyer, uint256 roundId)'),
                 args: { referrer: address },
-                fromBlock: 'earliest'
+                fromBlock: START_BLOCK
             })
         ]);
 

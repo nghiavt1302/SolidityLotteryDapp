@@ -4,7 +4,7 @@ import { parseEther, formatEther, Interface } from "ethers";
 import LotteryABI from "../artifacts/Lottery.json";
 import ExchangerABI from "../artifacts/TokenExchanger.json";
 import TokenABI from "../artifacts/HustToken.json";
-import { LOTTERY_ADDRESS, EXCHANGER_ADDRESS, TOKEN_ADDRESS } from "../App";
+import { LOTTERY_ADDRESS, EXCHANGER_ADDRESS, TOKEN_ADDRESS, START_BLOCK } from "../App";
 import { createPublicClient, http, parseAbiItem } from 'viem';
 import { sepolia } from 'viem/chains';
 
@@ -75,13 +75,13 @@ export default function Admin() {
             const liquidityLogs = await client.getLogs({
                 address: EXCHANGER_ADDRESS,
                 event: parseAbiItem('event LiquidityAdded(uint256 ethAmount)'),
-                fromBlock: 'earliest'
+                fromBlock: START_BLOCK
             });
 
             const withdrawLogs = await client.getLogs({
                 address: EXCHANGER_ADDRESS,
                 event: parseAbiItem('event FeesWithdrawn(uint256 ethAmount)'),
-                fromBlock: 'earliest'
+                fromBlock: START_BLOCK
             });
 
             let durationLogs = [];
@@ -89,7 +89,7 @@ export default function Admin() {
                 durationLogs = await client.getLogs({
                     address: LOTTERY_ADDRESS,
                     event: parseAbiItem('event DurationUpdated(uint256 newDuration)'),
-                    fromBlock: 'earliest'
+                    fromBlock: START_BLOCK
                 });
             } catch (e) {
                 console.log("DurationUpdated event not found");
