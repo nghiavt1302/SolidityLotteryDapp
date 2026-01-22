@@ -20,7 +20,7 @@ const config = getDefaultConfig({
 
   transports: {
     [hardhat.id]: http("http://127.0.0.1:8545"),
-    [sepolia.id]: http("https://eth-sepolia.g.alchemy.com/v2/tJvgPJHVTMrzQEZFq1Oxc"),
+    [sepolia.id]: http("https://ethereum-sepolia-rpc.publicnode.com"),
   },
   ssr: false,
 });
