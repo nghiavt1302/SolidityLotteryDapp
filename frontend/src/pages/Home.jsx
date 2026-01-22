@@ -37,6 +37,7 @@ export default function Home() {
     const [referrer, setReferrer] = useState("");
     const [winnerPopup, setWinnerPopup] = useState(null);
     const [buySuccessPopup, setBuySuccessPopup] = useState(null);
+    const [emptyRoundPopup, setEmptyRoundPopup] = useState(null);
 
     const readConfig = { address: LOTTERY_ADDRESS, abi: LotteryABI.abi, query: { refetchInterval: 2000 } };
     const { data: jackpotPool, refetch: refetchJackpot } = useReadContract({ ...readConfig, functionName: "jackpotPool" });
@@ -173,6 +174,11 @@ export default function Home() {
                                 jackpotContribution: parsed.args.jackpotContribution,
                                 isJackpotHit: parsed.args.isJackpotHit,
                                 isMe: address && parsed.args.winner.toLowerCase() === address.toLowerCase()
+                            });
+                            break;
+                        } else if (parsed && parsed.name === "RoundEndedEmpty") {
+                            setEmptyRoundPopup({
+                                roundId: parsed.args.round.toString()
                             });
                             break;
                         }
@@ -359,6 +365,22 @@ export default function Home() {
                         Vòng này bạn đang sở hữu tổng <strong style={{ color: '#f59e0b', fontSize: '1.2rem' }}>{buySuccessPopup?.total}</strong> vé.
                     </p>
                     <button onClick={() => setBuySuccessPopup(null)} className="btn-primary" style={{ marginTop: '20px', width: '50%' }}>
+                        OK
+                    </button>
+                </div>
+            </Modal>
+
+            <Modal show={emptyRoundPopup} onClose={() => setEmptyRoundPopup(null)}>
+                <div style={{ textAlign: 'center' }}>
+                    <div style={{ fontSize: '3rem', marginBottom: '10px' }}>⚠️</div>
+                    <h2 style={{ color: '#f59e0b', marginBottom: '15px' }}>Vòng không có người chơi</h2>
+                    <p style={{ fontSize: '1.1rem', marginBottom: '10px', color: '#94a3b8' }}>
+                        Vòng #{emptyRoundPopup?.roundId} đã kết thúc mà không có ai tham gia.
+                    </p>
+                    <p style={{ fontSize: '1.1rem', marginBottom: '20px', color: '#94a3b8' }}>
+                        Hệ thống sẽ tự động chuyển sang vòng tiếp theo.
+                    </p>
+                    <button onClick={() => setEmptyRoundPopup(null)} className="btn-primary" style={{ width: '50%' }}>
                         OK
                     </button>
                 </div>

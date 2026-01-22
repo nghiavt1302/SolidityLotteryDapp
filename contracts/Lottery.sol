@@ -13,7 +13,7 @@ contract Lottery is Ownable {
     address[] public players;
     uint256 public jackpotPool;
     uint256 public endTime;
-    uint256 public lotteryDuration = 7 minutes; 
+    uint256 public lotteryDuration = 3 minutes; 
 
     uint256 public uniquePlayersCount;
     mapping(uint256 => mapping(address => bool)) public hasPlayedInRound;
