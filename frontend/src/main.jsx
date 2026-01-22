@@ -6,17 +6,21 @@ import "./index.css";
 import "@rainbow-me/rainbowkit/styles.css";
 import { RainbowKitProvider, getDefaultConfig } from "@rainbow-me/rainbowkit";
 import { WagmiProvider, http } from "wagmi";
-import { hardhat } from "wagmi/chains";
+import { hardhat, sepolia } from "wagmi/chains";
 import { QueryClientProvider, QueryClient } from "@tanstack/react-query";
 
 import detectEthereumProvider from '@metamask/detect-provider';
 
+const WALLET_CONNECT_PROJECT_ID = "68c92adc5be706d5b996632c1a94ee0c";
+
 const config = getDefaultConfig({
   appName: "HUST Lottery",
-  projectId: "YOUR_PROJECT_ID",
-  chains: [hardhat],
+  projectId: WALLET_CONNECT_PROJECT_ID,
+  chains: [sepolia, hardhat],
+
   transports: {
     [hardhat.id]: http("http://127.0.0.1:8545"),
+    [sepolia.id]: http("https://eth-sepolia.g.alchemy.com/v2/tJvgPJHVTMrzQEZFq1Oxc"),
   },
   ssr: false,
 });

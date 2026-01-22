@@ -6,7 +6,7 @@ import ExchangerABI from "../artifacts/TokenExchanger.json";
 import TokenABI from "../artifacts/HustToken.json";
 import { LOTTERY_ADDRESS, EXCHANGER_ADDRESS, TOKEN_ADDRESS } from "../App";
 import { createPublicClient, http, parseAbiItem } from 'viem';
-import { hardhat } from 'viem/chains';
+import { sepolia } from 'viem/chains';
 
 const Modal = ({ show, onClose, children }) => {
     if (!show) return null;
@@ -66,7 +66,10 @@ export default function Admin() {
 
     const fetchHistory = async () => {
         if (!address) return;
-        const client = createPublicClient({ chain: hardhat, transport: http() });
+        const client = createPublicClient({
+            chain: sepolia,
+            transport: http("https://rpc.sepolia.org")
+        });
 
         try {
             const liquidityLogs = await client.getLogs({

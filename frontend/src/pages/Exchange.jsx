@@ -6,7 +6,7 @@ import MyTokenABI from "../artifacts/HustToken.json";
 import LotteryABI from "../artifacts/Lottery.json";
 import { EXCHANGER_ADDRESS, TOKEN_ADDRESS, LOTTERY_ADDRESS } from "../App";
 import { createPublicClient, http, parseAbiItem } from 'viem';
-import { hardhat } from 'viem/chains';
+import { sepolia } from 'viem/chains';
 import { Interface } from "ethers";
 
 const Modal = ({ show, onClose, children }) => {
@@ -99,7 +99,10 @@ export default function Exchange() {
 
     const fetchHistory = async () => {
         if (!address) return;
-        const client = createPublicClient({ chain: hardhat, transport: http() });
+        const client = createPublicClient({
+            chain: sepolia,
+            transport: http("https://rpc.sepolia.org")
+        });
 
         const buyLogs = await client.getLogs({
             address: EXCHANGER_ADDRESS,
@@ -125,7 +128,10 @@ export default function Exchange() {
 
     const fetchHSTHistory = async () => {
         if (!address) return;
-        const client = createPublicClient({ chain: hardhat, transport: http() });
+        const client = createPublicClient({
+            chain: sepolia,
+            transport: http("https://rpc.sepolia.org")
+        });
 
         const [mintLogs, burnLogs, ticketLogs, adminLogs, callerLogs, prizeLogs, referralLogs] = await Promise.all([
             client.getLogs({ address: EXCHANGER_ADDRESS, event: parseAbiItem('event TokensPurchased(address indexed buyer, uint256 ethAmount, uint256 tokenAmount)'), args: { buyer: address }, fromBlock: 'earliest' }),
