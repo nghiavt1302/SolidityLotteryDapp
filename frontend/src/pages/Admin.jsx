@@ -68,7 +68,7 @@ export default function Admin() {
         if (!address) return;
         const client = createPublicClient({
             chain: sepolia,
-            transport: http("https://rpc.sepolia.org")
+            transport: http("https://eth-sepolia.g.alchemy.com/v2/tJvgPJHVTMrzQEZFq1Oxc")
         });
 
         try {

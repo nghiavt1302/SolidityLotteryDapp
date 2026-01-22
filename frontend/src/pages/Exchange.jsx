@@ -101,7 +101,7 @@ export default function Exchange() {
         if (!address) return;
         const client = createPublicClient({
             chain: sepolia,
-            transport: http("https://rpc.sepolia.org")
+            transport: http("https://eth-sepolia.g.alchemy.com/v2/tJvgPJHVTMrzQEZFq1Oxc")
         });
 
         const buyLogs = await client.getLogs({
@@ -130,7 +130,7 @@ export default function Exchange() {
         if (!address) return;
         const client = createPublicClient({
             chain: sepolia,
-            transport: http("https://rpc.sepolia.org")
+            transport: http("https://eth-sepolia.g.alchemy.com/v2/tJvgPJHVTMrzQEZFq1Oxc")
         });
 
         const [mintLogs, burnLogs, ticketLogs, adminLogs, callerLogs, prizeLogs, referralLogs] = await Promise.all([
