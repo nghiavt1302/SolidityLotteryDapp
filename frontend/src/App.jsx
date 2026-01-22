@@ -12,9 +12,9 @@ import Admin from "./pages/Admin";
 import MyTokenABI from "./artifacts/HustToken.json";
 import LotteryABI from "./artifacts/Lottery.json";
 
-export const TOKEN_ADDRESS = "0x5FbDB2315678afecb367f032d93F642f64180aa3";
-export const EXCHANGER_ADDRESS = "0xe7f1725E7734CE288F8367e1Bb143E90bb3F0512";
-export const LOTTERY_ADDRESS = "0x9fE46736679d2D9a65F0992F2272dE9f3c7fa6e0";
+export const TOKEN_ADDRESS = "0x148B5Cc3affA6e7A381977DabF757EF63290055f";
+export const EXCHANGER_ADDRESS = "0x53303c6512C04384dbCD4ec962F46d582Ee630e1";
+export const LOTTERY_ADDRESS = "0xE57a9959bED0051d2e3D720548091555Ab4012d7";
 
 function Navbar() {
   const { address, isConnected } = useAccount();

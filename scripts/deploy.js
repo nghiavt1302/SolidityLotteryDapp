@@ -35,7 +35,7 @@ async function main() {
     console.log("Admin renounced MINTER_ROLE (SECURED)");
 
     console.log("--- Adding Liquidity ---");
-    await exchanger.depositLiquidity({ value: ethers.parseEther("10.0") });
+    await exchanger.depositLiquidity({ value: ethers.parseEther("1.0") });
     console.log("Deposited 10 ETH liquidity to Exchanger");
 
     console.log("--- DEPLOYMENT COMPLETE ---");
