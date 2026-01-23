@@ -110,51 +110,52 @@ export default function Home() {
 
     useEffect(() => {
         if (isConfirmed && receipt) {
-            refetchPlayers(); refetchAllowance(); refetchHistory(); refetchLotteryBalance();
-            const lotteryLogs = receipt.logs.filter(l => l.address.toLowerCase() === LOTTERY_ADDRESS.toLowerCase());
-
-            // Check if it's a Buy ticket transaction (TicketPurchased)
-            // Since we don't have easy decode, checking if log count > 0 is a hint, OR assume successful tx + input involved.
-            // Better: Parse logs. TicketPurchased topic0.
             const iface = new Interface(LotteryABI.abi);
+            let foundTicketPurchase = false;
+            let boughtQty = 0;
+
+            // First, check if there's a TicketPurchased event
             for (const log of receipt.logs) {
                 if (log.address.toLowerCase() === LOTTERY_ADDRESS.toLowerCase()) {
                     try {
                         const parsed = iface.parseLog({ topics: [...log.topics], data: log.data });
                         if (parsed && parsed.name === "TicketPurchased" && parsed.args.player.toLowerCase() === address.toLowerCase()) {
-                            // Found our buy event
-                            const boughtQty = parsed.args.amount.toString();
-
-                            // Calculate total owned. Using `players` data which should be updated or we use the local knowledge + optimistic
-                            // Refetch might not be fast enough.
-                            // But we can count from players list if available (players might be stale).
-                            // Let's assume refetchPlayers was called. But React update is async.
-                            // We can manually counting from existing `players` + boughtQty IF players isn't updated?
-                            // Or just wait? 
-                            // Wait, refetch is async.
-                            // Let's rely on `players` data? No, it might not be updated yet in this render cycle.
-                            // Best approach: Optimistic calc.
-
-                            let currentOwned = 0;
-                            if (players) {
-                                players.forEach(p => { if (p.toLowerCase() === address.toLowerCase()) currentOwned++; });
-                            }
-                            // Note: `players` here is STALE (from previous render). 
-                            // So new total = currentOwned + Number(boughtQty).
-
-                            setBuySuccessPopup({
-                                bought: boughtQty,
-                                total: currentOwned + Number(boughtQty)
-                            });
-                            setTicketQty(1);
-                            setReferrer("");
+                            foundTicketPurchase = true;
+                            boughtQty = Number(parsed.args.amount);
                             break;
                         }
                     } catch (e) { }
                 }
             }
+
+            // Refetch data
+            refetchPlayers();
+            refetchAllowance();
+            refetchHistory();
+            refetchLotteryBalance();
+
+            // If ticket purchase was successful, wait a bit for refetch to complete, then show popup
+            if (foundTicketPurchase) {
+                setTimeout(() => {
+                    // After refetch, count actual tickets from the updated players array
+                    refetchPlayers().then((result) => {
+                        let totalOwned = 0;
+                        const updatedPlayers = result.data || [];
+                        updatedPlayers.forEach(p => {
+                            if (p.toLowerCase() === address.toLowerCase()) totalOwned++;
+                        });
+
+                        setBuySuccessPopup({
+                            bought: boughtQty,
+                            total: totalOwned
+                        });
+                        setTicketQty(1);
+                        setReferrer("");
+                    });
+                }, 500);
+            }
         }
-    }, [isConfirmed, receipt]);
+    }, [isConfirmed, receipt, address]);
 
     useEffect(() => {
         if (isConfirmed && receipt) {
@@ -275,8 +276,17 @@ export default function Home() {
                         />
                     </div>
 
-                    <button onClick={handleBuy} className="btn-primary" disabled={isConfirming} style={{ marginTop: '10px' }}>
-                        {isConfirming ? "Đang xử lý..." : (!allowance || allowance < parseEther((Number(ticketQty) * 10).toString()) ? "1. Cấp quyền (Approve)" : "2. MUA VÉ NGAY")}
+                    <button
+                        onClick={handleBuy}
+                        className="btn-primary"
+                        disabled={isConfirming || timeLeft === 0}
+                        style={{
+                            marginTop: '10px',
+                            opacity: timeLeft === 0 ? 0.5 : 1,
+                            cursor: timeLeft === 0 ? 'not-allowed' : 'pointer'
+                        }}
+                    >
+                        {timeLeft === 0 ? "⏰ HẾT GIỜ MUA VÉ" : (isConfirming ? "Đang xử lý..." : (!allowance || allowance < parseEther((Number(ticketQty) * 10).toString()) ? "1. Cấp quyền (Approve)" : "2. MUA VÉ NGAY"))}
                     </button>
                 </div>
 
