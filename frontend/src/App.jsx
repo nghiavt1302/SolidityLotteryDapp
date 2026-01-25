@@ -21,7 +21,7 @@ function Navbar() {
   const { address, isConnected } = useAccount();
   const location = useLocation();
 
-  // 1. Đọc số dư HST
+  // Đọc số dư HST
   const { data: hstBalance } = useReadContract({
     address: TOKEN_ADDRESS,
     abi: MyTokenABI.abi,
@@ -30,15 +30,14 @@ function Navbar() {
     query: { refetchInterval: 2000 }
   });
 
-  // 2. [MỚI] Đọc chủ sở hữu (Owner) từ Lottery Contract để check quyền Admin
+  // Đọc Owner từ Lottery Contract để check quyền Admin
   const { data: ownerAddress } = useReadContract({
     address: LOTTERY_ADDRESS,
     abi: LotteryABI.abi,
     functionName: "owner"
   });
 
-  // Kiểm tra xem người dùng hiện tại có phải là Admin không
-  // (So sánh không phân biệt hoa thường)
+  // Kiểm tra người dùng hiện tại có phải là Admin không
   const isAdmin = isConnected && address && ownerAddress && address.toLowerCase() === ownerAddress.toLowerCase();
 
   return (
@@ -49,7 +48,6 @@ function Navbar() {
           <Link to="/" className={location.pathname === "/" ? "active" : ""}>Trang chủ</Link>
           <Link to="/exchange" className={location.pathname === "/exchange" ? "active" : ""}>Ngân hàng</Link>
 
-          {/* [MỚI] Chỉ hiện nút Admin nếu đúng là Admin */}
           {isAdmin && (
             <Link to="/admin" className={location.pathname === "/admin" ? "active" : ""} style={{ color: '#f59e0b' }}>
               Admin

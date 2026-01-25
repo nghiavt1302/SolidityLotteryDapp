@@ -243,18 +243,18 @@ export default function Admin() {
     return (
         <div className="main-grid" style={{ gridTemplateColumns: '1fr 1fr', gap: '20px' }}>
             <div className="card" style={{ border: '1px solid #f59e0b' }}>
-                <h2 style={{ color: '#f59e0b' }}>⚙️ Admin Dashboard</h2>
+                <h2 style={{ color: '#f59e0b' }}>Admin Dashboard</h2>
 
                 <div className="admin-section" style={{ background: '#f0f9ff', padding: '15px', borderRadius: '8px', marginBottom: '20px' }}>
-                    <h4 style={{ color: '#0284c7', marginTop: 0 }}>📊 Thông Tin Exchanger</h4>
+                    <h4 style={{ color: '#0284c7', marginTop: 0 }}>Thông Tin Exchanger</h4>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
-                        <span style={{ fontSize: '14px', color: '#64748b' }}>💰 Vốn thanh khoản (ETH):</span>
+                        <span style={{ fontSize: '14px', color: '#64748b' }}>Vốn thanh khoản (ETH):</span>
                         <span style={{ fontSize: '20px', fontWeight: 'bold', color: '#10b981' }}>
                             {exchangerETHBalance ? Number(formatEther(exchangerETHBalance.value)).toFixed(4) : "0"} ETH
                         </span>
                     </div>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingTop: '10px', borderTop: '1px solid #e0f2fe' }}>
-                        <span style={{ fontSize: '14px', color: '#64748b' }}>🪙 HST đang lưu hành:</span>
+                        <span style={{ fontSize: '14px', color: '#64748b' }}>HST đang lưu hành:</span>
                         <span style={{ fontSize: '18px', fontWeight: 'bold', color: '#0284c7' }}>
                             {circulatingHST ? Number(formatEther(circulatingHST)).toLocaleString() : "0"} HST
                         </span>
@@ -262,7 +262,7 @@ export default function Admin() {
                 </div>
 
                 <div className="admin-section" style={{ background: '#fef3c7', padding: '15px', borderRadius: '8px', marginBottom: '20px' }}>
-                    <h4 style={{ color: '#d97706', marginTop: 0 }}>👤 Ví Admin</h4>
+                    <h4 style={{ color: '#d97706', marginTop: 0 }}>Ví Admin</h4>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                         <span style={{ fontSize: '14px', color: '#78716c' }}>Số dư ETH:</span>
                         <span style={{ fontSize: '20px', fontWeight: 'bold', color: '#d97706' }}>
@@ -270,13 +270,13 @@ export default function Admin() {
                         </span>
                     </div>
                     <div style={{ fontSize: '11px', color: '#78716c', marginTop: '5px', fontStyle: 'italic' }}>
-                        💡 Hardhat test account ban đầu có 10,000 ETH
+                        Hardhat test account ban đầu có 10,000 ETH
                     </div>
                 </div>
 
 
                 <div className="admin-section">
-                    <h4>1. Cài đặt Game</h4>
+                    <h4>Cài đặt Game</h4>
                     <div className="qty-control" style={{ marginBottom: '10px' }}>
                         <input
                             type="number"
@@ -293,7 +293,7 @@ export default function Admin() {
                 </div>
 
                 <div className="admin-section">
-                    <h4>2. Quản lý Vốn Exchanger</h4>
+                    <h4>Quản lý Vốn Exchanger</h4>
                     <div className="qty-control" style={{ marginBottom: '10px' }}>
                         <input
                             type="number"
@@ -325,7 +325,7 @@ export default function Admin() {
             </div>
 
             <div className="card" style={{ border: '1px solid #f59e0b' }}>
-                <h3 style={{ color: '#f59e0b' }}>📜 Lịch sử hoạt động Admin</h3>
+                <h3 style={{ color: '#f59e0b' }}>Lịch sử hoạt động Admin</h3>
                 <div className="scroll-box" style={{ maxHeight: '500px', overflowY: 'auto' }}>
                     <table>
                         <thead><tr><th>Loại</th><th>Số lượng</th><th>Tx</th></tr></thead>

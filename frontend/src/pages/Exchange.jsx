@@ -49,9 +49,6 @@ export default function Exchange() {
         address: TOKEN_ADDRESS, abi: MyTokenABI.abi, functionName: "balanceOf", args: [address], query: { refetchInterval: 2000 }
     });
 
-    // ETH Balance? We can use wagmi hook if needed, but for popup we need HST mainly for "Buy" case.
-    // For "Sell" case: we need ETH balance? Request says "Thực nhận {Đ} ETH". We can calculate this from event logs (amount - fee).
-
     useEffect(() => {
         if (isSuccess && receipt) {
             fetchHistory(); refetchAllowance();
@@ -79,7 +76,7 @@ export default function Exchange() {
                                     setExchangePopup({
                                         type: "SELL",
                                         hstAmount: formatEther(parsed.args.tokenAmount),
-                                        ethEquivalent: formatEther(parsed.args.ethAmount + parsed.args.fee), // ethAmount is net received?
+                                        ethEquivalent: formatEther(parsed.args.ethAmount + parsed.args.fee),
                                         fee: formatEther(parsed.args.fee),
                                         netReceived: formatEther(parsed.args.ethAmount)
                                     });
@@ -270,13 +267,13 @@ export default function Exchange() {
                     </div>
 
                     <button onClick={handleExecute} className="btn-primary" disabled={isLoading}>
-                        {isLoading ? "Đang xử lý..." : (tab === "SELL" && (!allowance || allowance < parseEther(amount || "0")) ? "🔓 1. CẤP QUYỀN VÍ (APPROVE)" : (tab === "BUY" ? "NẠP NGAY" : "RÚT VỀ VÍ"))}
+                        {isLoading ? "Đang xử lý..." : (tab === "SELL" && (!allowance || allowance < parseEther(amount || "0")) ? "CẤP QUYỀN VÍ (APPROVE)" : (tab === "BUY" ? "NẠP NGAY" : "RÚT VỀ VÍ"))}
                     </button>
                 </div>
             </div>
 
             <div className="card history-card">
-                <h3>📜 Lịch sử giao dịch</h3>
+                <h3>Lịch sử giao dịch</h3>
                 <div className="scroll-box">
                     <table>
                         <thead><tr><th>Loại</th><th>HST</th><th>ETH</th><th>Tx</th></tr></thead>
@@ -296,7 +293,7 @@ export default function Exchange() {
             </div>
 
             <div className="card history-card" style={{ marginTop: '20px' }}>
-                <h3>💰 Lịch sử biến động HST</h3>
+                <h3>Lịch sử biến động HST</h3>
                 <div className="scroll-box">
                     <table>
                         <thead><tr><th>Loại</th><th>Số tiền</th><th>Từ</th><th>Đến</th><th>Vòng</th><th>Thời gian</th><th>Tx</th></tr></thead>

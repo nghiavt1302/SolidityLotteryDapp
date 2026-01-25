@@ -114,7 +114,6 @@ export default function Home() {
             let foundTicketPurchase = false;
             let boughtQty = 0;
 
-            // First, check if there's a TicketPurchased event
             for (const log of receipt.logs) {
                 if (log.address.toLowerCase() === LOTTERY_ADDRESS.toLowerCase()) {
                     try {
@@ -134,10 +133,8 @@ export default function Home() {
             refetchHistory();
             refetchLotteryBalance();
 
-            // If ticket purchase was successful, wait a bit for refetch to complete, then show popup
             if (foundTicketPurchase) {
                 setTimeout(() => {
-                    // After refetch, count actual tickets from the updated players array
                     refetchPlayers().then((result) => {
                         let totalOwned = 0;
                         const updatedPlayers = result.data || [];
@@ -233,23 +230,23 @@ export default function Home() {
                 <div className="card highlight-card">
                     <div className="stats-row">
                         <div className="stat-box">
-                            <div className="stat-label">Jackpot 🍯</div>
+                            <div className="stat-label">Jackpot</div>
                             <div className="stat-value">{jackpotPool ? formatEther(jackpotPool) : "0"}</div>
                         </div>
                         <div className="stat-box">
-                            <div className="stat-label">Quỹ Vòng 💰</div>
+                            <div className="stat-label">Quỹ Vòng</div>
                             <div className="stat-value" style={{ color: '#38bdf8' }}>
                                 {formatEther(currentRoundFund)}
                             </div>
                         </div>
                         <div className="stat-box">
-                            <div className="stat-label">Thời gian ⏳</div>
+                            <div className="stat-label">Thời gian</div>
                             <div className="stat-value" style={{ color: timeLeft === 0 ? '#ef4444' : '#22c55e' }}>
                                 {timeLeft === null ? "..." : timeLeft > 0 ? `${Math.floor(timeLeft / 60)}:${(timeLeft % 60).toString().padStart(2, '0')}` : "HẾT GIỜ"}
                             </div>
                         </div>
                     </div>
-                    <div className="chance-badge">🎯 Vòng #{lotteryId ? Number(lotteryId) : "..."} | 🔥 Tỷ lệ Nổ Hũ: {jackpotChance ? (Number(jackpotChance) / 100).toFixed(2) : "0.10"}%</div>
+                    <div className="chance-badge">🎯 Vòng #{lotteryId ? Number(lotteryId) : "..."} | 🔥 Tỷ lệ Nổ Hũ: {jackpotChance ? (Number(jackpotChance) / 100).toFixed(2) : "0.10"}% 🔥</div>
                 </div>
 
                 <div className="card">
@@ -286,16 +283,16 @@ export default function Home() {
                             cursor: timeLeft === 0 ? 'not-allowed' : 'pointer'
                         }}
                     >
-                        {timeLeft === 0 ? "⏰ HẾT GIỜ MUA VÉ" : (isConfirming ? "Đang xử lý..." : (!allowance || allowance < parseEther((Number(ticketQty) * 10).toString()) ? "1. Cấp quyền (Approve)" : "2. MUA VÉ NGAY"))}
+                        {timeLeft === 0 ? "HẾT GIỜ MUA VÉ" : (isConfirming ? "Đang xử lý..." : (!allowance || allowance < parseEther((Number(ticketQty) * 10).toString()) ? "Cấp quyền (Approve)" : "MUA VÉ NGAY"))}
                     </button>
                 </div>
 
                 {timeLeft === 0 && (
                     <div className="card danger-border">
-                        <h3>🛑 Kết thúc vòng chơi</h3>
+                        <h3>Kết thúc vòng chơi</h3>
                         <p style={{ textAlign: 'center' }}>Đã hết giờ! Hãy quay số để tìm người thắng cuộc và nhận 2% thưởng.</p>
                         <button onClick={handlePickWinner} className="btn-danger" disabled={isConfirming}>
-                            🎰 QUAY SỐ & NHẬN THƯỞNG
+                            QUAY SỐ & NHẬN THƯỞNG
                         </button>
                     </div>
                 )}
@@ -303,7 +300,7 @@ export default function Home() {
 
             <div className="right-col">
                 <div className="card">
-                    <h3>👥 Người chơi ({uniqueCount?.toString()})</h3>
+                    <h3>Người chơi ({uniqueCount?.toString()})</h3>
                     <div className="scroll-box">
                         <table>
                             <thead><tr><th>Ví</th><th style={{ textAlign: 'right' }}>Vé</th></tr></thead>
@@ -316,7 +313,7 @@ export default function Home() {
                     </div>
                 </div>
                 <div className="card">
-                    <h3>📜 Lịch sử thắng</h3>
+                    <h3>Lịch sử thắng</h3>
                     <div className="scroll-box">
                         <table>
                             <thead><tr><th>Vòng</th><th>Người thắng</th><th>Giải</th></tr></thead>
@@ -337,7 +334,7 @@ export default function Home() {
             <Modal show={winnerPopup} onClose={() => setWinnerPopup(null)}>
                 <div style={{ textAlign: 'center' }}>
                     <h2 style={{ color: '#f59e0b', fontSize: '2rem', marginBottom: '10px' }}>
-                        {winnerPopup?.isJackpotHit ? "💥 JACKPOT HIT! 💥" : "🎉 KẾT QUẢ VÒNG QUAY 🎉"}
+                        {winnerPopup?.isJackpotHit ? "💥 JACKPOT HIT! 💥" : "KẾT QUẢ VÒNG QUAY"}
                     </h2>
 
                     {winnerPopup?.isMe && (
@@ -347,7 +344,7 @@ export default function Home() {
                             color: 'white', fontWeight: 'bold', marginBottom: '20px',
                             animation: 'pulse 1s infinite'
                         }}>
-                            🏆 CHÚC MỪNG! BẠN LÀ NGƯỜI CHIẾN THẮNG! 🏆
+                            CHÚC MỪNG! BẠN LÀ NGƯỜI CHIẾN THẮNG!
                         </div>
                     )}
 
